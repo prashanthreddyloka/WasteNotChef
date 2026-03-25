@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: wastenotchef-api
+    env: node
+    rootDir: .
+    buildCommand: npm install && npx prisma generate && npm run build:server
+    startCommand: npx prisma db push && npm run prisma:seed && node dist/src/index.js
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: PORT
+        value: 4000
+      - key: DATABASE_URL
+        value: file:./prisma/dev.db
+      - key: CLIENT_URLS
+        sync: false
+    disk:
+      name: sqlite-data
+      mountPath: /opt/render/project/src/prisma
+      sizeGB: 1

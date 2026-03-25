@@ -1,0 +1,78 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model IngredientRule {
+  id                  String   @id @default(cuid())
+  name                String   @unique
+  category            String
+  shelfLifeDays       Int
+  openedShelfLifeDays Int?
+  importanceWeight    Float    @default(1)
+  createdAt           DateTime @default(now())
+}
+
+model Recipe {
+  id              String   @id
+  title           String
+  tags            String
+  cookTime        Int
+  stepsJson       String
+  ingredientsJson String
+  createdAt       DateTime @default(now())
+}
+
+model PantryItem {
+  id             String   @id
+  name           String
+  quantity       String?
+  detectedExpiry DateTime?
+  inferredExpiry DateTime?
+  confidence     Float
+  notes          String?
+  source         String   @default("upload")
+  status         String   @default("active")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model WeekPlan {
+  id           String   @id @default(cuid())
+  startDate    DateTime
+  endDate      DateTime
+  wasteScore   Float
+  reasoning    String
+  metadataJson String
+  createdAt    DateTime @default(now())
+  dayPlans     DayPlan[]
+}
+
+model DayPlan {
+  id                String   @id @default(cuid())
+  weekPlanId        String
+  scheduledDate     DateTime
+  recipeId          String
+  recipeTitle       String
+  reasoning         String
+  priority          Float
+  itemsConsumedJson String
+  leftoversJson     String
+  wasteScore        Float
+  createdAt         DateTime @default(now())
+  weekPlan          WeekPlan @relation(fields: [weekPlanId], references: [id], onDelete: Cascade)
+}
+
+model ReminderPreference {
+  id              String   @id @default(cuid())
+  email           String?
+  reminderDays    Int      @default(2)
+  webPushEndpoint String?
+  enabled         Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}

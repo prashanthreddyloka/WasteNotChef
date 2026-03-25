@@ -1,0 +1,19 @@
+version: "3.9"
+
+services:
+  app:
+    build: .
+    ports:
+      - "4000:4000"
+      - "5173:5173"
+    environment:
+      PORT: 4000
+      CLIENT_URL: http://localhost:5173
+      DATABASE_URL: file:./prisma/dev.db
+    volumes:
+      - ./:/app
+      - sqlite_data:/app/prisma
+    command: npm run dev
+
+volumes:
+  sqlite_data:
