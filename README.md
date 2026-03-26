@@ -1,4 +1,5 @@
 # WasteNotChef
+live URL: https://waste-not-chef.vercel.app
 
 ## What I built
 WasteNotChef is a camera-first PWA-style web app for turning a quick fridge photo into a practical, animated weekly cooking quest. The repo includes:
