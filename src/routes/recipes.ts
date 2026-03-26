@@ -14,6 +14,42 @@ function parseRecipeTags(tagString: string) {
   return { tags, country, continent };
 }
 
+function ingredientMatchScore(
+  ingredients: Array<{ name: string; qty: string; optional?: boolean }>,
+  pantry: Set<string>,
+  country?: string,
+  continent?: string
+) {
+  const required = ingredients.filter((ingredient) => !ingredient.optional);
+  const optional = ingredients.filter((ingredient) => ingredient.optional);
+  const matchedRequired = required.filter((ingredient) => pantry.has(ingredient.name.toLowerCase()));
+  const matchedOptional = optional.filter((ingredient) => pantry.has(ingredient.name.toLowerCase()));
+  const missingRequired = required.filter((ingredient) => !pantry.has(ingredient.name.toLowerCase()));
+  const missingOptional = optional.filter((ingredient) => !pantry.has(ingredient.name.toLowerCase()));
+
+  const requiredCoverage = required.length > 0 ? matchedRequired.length / required.length : 0;
+  const optionalCoverage = optional.length > 0 ? matchedOptional.length / optional.length : 0;
+  const indianPriorityBonus = country?.toLowerCase() === "india" ? 2 : continent?.toLowerCase() === "asia" ? 0.5 : 0;
+
+  const score =
+    matchedRequired.length * 18 +
+    matchedOptional.length * 6 +
+    requiredCoverage * 20 +
+    optionalCoverage * 4 -
+    missingRequired.length * 12 -
+    missingOptional.length * 1.5 +
+    indianPriorityBonus;
+
+  return {
+    score,
+    matchedRequired,
+    matchedOptional,
+    missingRequired,
+    missingOptional,
+    requiredCoverage
+  };
+}
+
 export const recipesRouter = Router();
 
 recipesRouter.post("/from-items", async (req, res, next) => {
@@ -25,12 +61,8 @@ recipesRouter.post("/from-items", async (req, res, next) => {
     const mapped = recipes
       .map((recipe) => {
         const ingredients = JSON.parse(recipe.ingredientsJson) as Array<{ name: string; qty: string; optional?: boolean }>;
-        const matches = ingredients.filter((ingredient) => pantry.has(ingredient.name.toLowerCase()));
-        const missingOptional = ingredients.filter(
-          (ingredient) => ingredient.optional && !pantry.has(ingredient.name.toLowerCase())
-        );
         const { tags, country, continent } = parseRecipeTags(recipe.tags);
-        const indianPriorityBonus = country?.toLowerCase() === "india" ? 8 : continent?.toLowerCase() === "asia" ? 2 : 0;
+        const ranking = ingredientMatchScore(ingredients, pantry, country, continent);
         return {
           id: recipe.id,
           title: recipe.title,
@@ -40,13 +72,15 @@ recipesRouter.post("/from-items", async (req, res, next) => {
           cookTime: recipe.cookTime,
           steps: JSON.parse(recipe.stepsJson),
           ingredients,
-          score: matches.length * 10 - missingOptional.length + indianPriorityBonus,
-          coverage: `${matches.length}/${ingredients.length}`,
-          substitutionSuggestions: missingOptional.map(
+          score: Number(ranking.score.toFixed(2)),
+          coverage: `${ranking.matchedRequired.length + ranking.matchedOptional.length}/${ingredients.length}`,
+          substitutionSuggestions: ranking.missingOptional.map(
             (ingredient) => `Optional swap for ${ingredient.name}: pantry-friendly herb, greens, or a neutral staple.`
-          )
+          ),
+          requiredCoverage: ranking.requiredCoverage
         };
       })
+      .filter((recipe) => recipe.requiredCoverage > 0 || recipe.score > 8)
       .sort((a, b) => b.score - a.score);
 
     return res.json({

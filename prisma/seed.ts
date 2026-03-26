@@ -13,7 +13,7 @@ const ingredientRules = [
   ["sour cream", "dairy", 10, 7, 1.1], ["avocado", "fruit", 4, 3, 1.2], ["lime", "fruit", 10, 7, 0.6],
   ["lemon", "fruit", 14, 10, 0.6], ["garlic", "aromatic", 30, 21, 0.4], ["onion", "aromatic", 30, 21, 0.5],
   ["kale", "greens", 7, 5, 1], ["zucchini", "vegetable", 5, 4, 0.8], ["cauliflower", "vegetable", 7, 5, 0.9],
-  ["ground beef", "protein", 3, 2, 1.5], ["turkey", "protein", 3, 2, 1.4], ["bacon", "protein", 7, 5, 1.2],
+  ["ground beef", "protein", 3, 2, 1.5], ["goat", "protein", 3, 2, 1.6], ["turkey", "protein", 3, 2, 1.4], ["bacon", "protein", 7, 5, 1.2],
   ["ham", "protein", 7, 5, 1.1], ["shrimp", "protein", 2, 2, 1.6], ["pork", "protein", 4, 3, 1.5],
   ["beans", "pantry", 180, 120, 0.4], ["chickpeas", "pantry", 180, 120, 0.4], ["lentils", "pantry", 180, 120, 0.4],
   ["cilantro", "herb", 5, 3, 0.8], ["parsley", "herb", 7, 5, 0.7], ["basil", "herb", 5, 3, 0.8],
@@ -366,6 +366,58 @@ const recipes = [
       { name: "cream", qty: "1/4 cup", optional: true }
     ],
     steps: ["Cook vegetables until tender.", "Simmer in a creamy spiced sauce.", "Serve with rice or bread."]
+  },
+  {
+    id: "recipe-chicken-curry-style",
+    title: "Chicken Curry Style Masala",
+    tags: "indian,curry,protein,country:India,continent:Asia",
+    cookTime: 40,
+    ingredients: [
+      { name: "chicken", qty: "1 lb" },
+      { name: "onion", qty: "1", optional: true },
+      { name: "tomato", qty: "2", optional: true },
+      { name: "garlic", qty: "3 cloves", optional: true }
+    ],
+    steps: ["Brown the chicken lightly.", "Cook aromatics into a masala base.", "Simmer chicken until tender and coated."]
+  },
+  {
+    id: "recipe-chicken-pulao-style",
+    title: "Chicken Pulao",
+    tags: "indian,rice,protein,country:India,continent:Asia",
+    cookTime: 35,
+    ingredients: [
+      { name: "chicken", qty: "1 lb" },
+      { name: "rice", qty: "1 cup" },
+      { name: "onion", qty: "1/2", optional: true },
+      { name: "peas", qty: "1/2 cup", optional: true }
+    ],
+    steps: ["Saute chicken with aromatics.", "Add rice and liquid.", "Cook until the chicken is tender and rice is fluffy."]
+  },
+  {
+    id: "recipe-goat-curry-style",
+    title: "Goat Curry Style Masala",
+    tags: "indian,curry,protein,country:India,continent:Asia",
+    cookTime: 55,
+    ingredients: [
+      { name: "goat", qty: "1 lb" },
+      { name: "onion", qty: "1", optional: true },
+      { name: "tomato", qty: "2", optional: true },
+      { name: "garlic", qty: "3 cloves", optional: true }
+    ],
+    steps: ["Sear goat pieces lightly.", "Cook onion-tomato masala.", "Simmer until the meat is tender and flavorful."]
+  },
+  {
+    id: "recipe-goat-keema-style",
+    title: "Goat Keema Style Saute",
+    tags: "indian,protein,quick,country:India,continent:Asia",
+    cookTime: 30,
+    ingredients: [
+      { name: "goat", qty: "1 lb" },
+      { name: "peas", qty: "1/2 cup", optional: true },
+      { name: "onion", qty: "1/2", optional: true },
+      { name: "tomato", qty: "1", optional: true }
+    ],
+    steps: ["Cook goat mince or finely chopped goat with onions.", "Add peas and tomato.", "Reduce until richly coated."]
   }
 ];
 

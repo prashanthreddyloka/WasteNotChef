@@ -41,3 +41,17 @@ export type PlannerPreferences = {
   preferCuisineTags: string[];
   maxLeftovers: number;
 };
+
+export type SessionUser = {
+  mode: "guest" | "local";
+  name: string;
+  email?: string;
+};
+
+export type NotificationPrefs = {
+  webPushEnabled: boolean;
+  emailEnabled: boolean;
+  email?: string;
+  reminderDays: number;
+  browserPermission: "default" | "granted" | "denied";
+};

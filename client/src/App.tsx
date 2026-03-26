@@ -7,10 +7,19 @@ import { detectVisibleItems, mergeDetectedItems } from "./lib/visualHeuristics";
 import { Dashboard } from "./pages/Dashboard";
 import { Fridge } from "./pages/Fridge";
 import { Landing } from "./pages/Landing";
+import { Login } from "./pages/Login";
 import { Planner } from "./pages/Planner";
 import { Recipes } from "./pages/Recipes";
 import { Settings } from "./pages/Settings";
-import type { DayPlan, PantryItem, Recipe } from "./types";
+import type { DayPlan, NotificationPrefs, PantryItem, Recipe, SessionUser } from "./types";
+
+const STORAGE_KEYS = {
+  items: "wastenotchef:items",
+  recipes: "wastenotchef:recipes",
+  dayPlans: "wastenotchef:dayPlans",
+  session: "wastenotchef:session",
+  notificationPrefs: "wastenotchef:notificationPrefs"
+} as const;
 
 function OnboardingModal({ open, onClose, onUseDemo }: { open: boolean; onClose: () => void; onUseDemo: () => void }) {
   if (!open) {
@@ -48,6 +57,15 @@ function App() {
   const [items, setItems] = useState<PantryItem[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [dayPlans, setDayPlans] = useState<DayPlan[]>([]);
+  const [session, setSession] = useState<SessionUser | null>(null);
+  const [notificationPrefs, setNotificationPrefs] = useState<NotificationPrefs>({
+    webPushEnabled: false,
+    emailEnabled: false,
+    email: "",
+    reminderDays: 2,
+    browserPermission:
+      typeof window !== "undefined" && "Notification" in window ? Notification.permission : "default"
+  });
   const [busy, setBusy] = useState(false);
   const [recipesBusy, setRecipesBusy] = useState(false);
   const [timeseries, setTimeseries] = useState<Array<{ date: string; wasteScore: number; recipeTitle?: string }>>(
@@ -57,11 +75,65 @@ function App() {
   const [appError, setAppError] = useState<string | null>(null);
 
   useEffect(() => {
+    try {
+      const storedItems = window.localStorage.getItem(STORAGE_KEYS.items);
+      const storedRecipes = window.localStorage.getItem(STORAGE_KEYS.recipes);
+      const storedDayPlans = window.localStorage.getItem(STORAGE_KEYS.dayPlans);
+      const storedSession = window.localStorage.getItem(STORAGE_KEYS.session);
+      const storedNotificationPrefs = window.localStorage.getItem(STORAGE_KEYS.notificationPrefs);
+
+      if (storedItems) {
+        setItems(JSON.parse(storedItems) as PantryItem[]);
+      }
+
+      if (storedRecipes) {
+        setRecipes(JSON.parse(storedRecipes) as Recipe[]);
+      }
+
+      if (storedDayPlans) {
+        setDayPlans(JSON.parse(storedDayPlans) as DayPlan[]);
+      }
+
+      if (storedSession) {
+        setSession(JSON.parse(storedSession) as SessionUser);
+      }
+
+      if (storedNotificationPrefs) {
+        setNotificationPrefs(JSON.parse(storedNotificationPrefs) as NotificationPrefs);
+      }
+    } catch (error) {
+      console.warn("Could not restore saved app state.", error);
+    }
+  }, []);
+
+  useEffect(() => {
     const visited = window.localStorage.getItem("wastenotchef:onboarded");
     if (!visited) {
       setShowOnboarding(true);
     }
   }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(STORAGE_KEYS.items, JSON.stringify(items));
+  }, [items]);
+
+  useEffect(() => {
+    window.localStorage.setItem(STORAGE_KEYS.recipes, JSON.stringify(recipes));
+  }, [recipes]);
+
+  useEffect(() => {
+    window.localStorage.setItem(STORAGE_KEYS.dayPlans, JSON.stringify(dayPlans));
+  }, [dayPlans]);
+
+  useEffect(() => {
+    if (session) {
+      window.localStorage.setItem(STORAGE_KEYS.session, JSON.stringify(session));
+    }
+  }, [session]);
+
+  useEffect(() => {
+    window.localStorage.setItem(STORAGE_KEYS.notificationPrefs, JSON.stringify(notificationPrefs));
+  }, [notificationPrefs]);
 
   useEffect(() => {
     console.log("[analytics-stub]", { path: location.pathname, timestamp: new Date().toISOString() });
@@ -167,6 +239,50 @@ function App() {
     }
   }
 
+  function handleGuestLogin() {
+    setSession({ mode: "guest", name: "Guest cook" });
+  }
+
+  function handleLocalLogin(payload: { name: string; email: string }) {
+    setSession({ mode: "local", name: payload.name, email: payload.email });
+    setNotificationPrefs((current) => ({
+      ...current,
+      email: payload.email,
+      emailEnabled: true
+    }));
+  }
+
+  async function enableBrowserNotifications() {
+    if (!("Notification" in window)) {
+      setAppError("This browser does not support notifications.");
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+    setNotificationPrefs((current) => ({
+      ...current,
+      webPushEnabled: permission === "granted",
+      browserPermission: permission
+    }));
+  }
+
+  function updateNotificationPrefs(updates: Partial<NotificationPrefs>) {
+    setNotificationPrefs((current) => ({ ...current, ...updates }));
+  }
+
+  function logout() {
+    window.localStorage.removeItem(STORAGE_KEYS.session);
+    setSession(null);
+  }
+
+  if (!session) {
+    return (
+      <div className="min-h-screen bg-[#f4f8fb] px-4 py-8 text-ink sm:px-6 lg:px-8">
+        <Login onGuestLogin={handleGuestLogin} onLocalLogin={handleLocalLogin} />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#f4f8fb] text-ink">
       <OnboardingModal open={showOnboarding} onClose={() => closeOnboarding(false)} onUseDemo={() => closeOnboarding(true)} />
@@ -176,19 +292,31 @@ function App() {
             <Link to="/" className="font-display text-2xl text-ink">
               WasteNotChef
             </Link>
-            <nav className="flex flex-wrap gap-2">
-              {navItems.map(([href, label]) => (
-                <Link
-                  key={href}
-                  to={href}
-                  className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                    location.pathname === href ? "bg-ink text-white" : "text-slate-600 hover:bg-slate-100"
-                  }`}
-                >
-                  {label}
-                </Link>
-              ))}
-            </nav>
+            <div className="flex flex-wrap items-center gap-3">
+              <nav className="flex flex-wrap gap-2">
+                {navItems.map(([href, label]) => (
+                  <Link
+                    key={href}
+                    to={href}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                      location.pathname === href ? "bg-ink text-white" : "text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    {label}
+                  </Link>
+                ))}
+              </nav>
+              <div className="rounded-full bg-mist px-4 py-2 text-sm font-semibold text-slate-700">
+                {session.name}
+              </div>
+              <button
+                type="button"
+                onClick={logout}
+                className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
+              >
+                Log out
+              </button>
+            </div>
           </div>
         </header>
 
@@ -246,7 +374,17 @@ function App() {
                 />
                 <Route path="/planner" element={<Planner dayPlans={dayPlans} onReorder={setDayPlans} />} />
                 <Route path="/dashboard" element={<Dashboard timeseries={timeseries} />} />
-                <Route path="/settings" element={<Settings />} />
+                <Route
+                  path="/settings"
+                  element={
+                    <Settings
+                      session={session}
+                      notificationPrefs={notificationPrefs}
+                      onUpdateNotificationPrefs={updateNotificationPrefs}
+                      onEnableBrowserNotifications={enableBrowserNotifications}
+                    />
+                  }
+                />
               </Routes>
             </motion.div>
           </AnimatePresence>
