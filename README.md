@@ -10,32 +10,6 @@ WasteNotChef is an AI-powered fridge intelligence app that turns ingredients on 
 
 Live app: [https://waste-not-chef.vercel.app](https://waste-not-chef.vercel.app)
 
-## Product Preview
-Current captured preview:
-- Landing page with camera-first upload hero, planner CTA, and AI chat button
-
-To embed the screenshot directly in this README, save the attached image into the repo, for example:
-- `docs/images/landing-preview.png`
-
-Then add:
-```md
-![WasteNotChef landing page](docs/images/landing-preview.png)
-```
-
-Recommended files:
-- `docs/images/login.png`
-- `docs/images/fridge-review.png`
-- `docs/images/recipes.png`
-- `docs/images/planner.png`
-- `docs/images/chat.gif`
-
-Suggested capture order:
-1. Login or guest entry
-2. Fridge review with detected and manual items
-3. Recipes with filters and `Show recipe`
-4. Planner with saved meals
-5. AI chat in action
-
 ## What It Does
 - Upload a fridge photo with a camera-first flow
 - Detect visible ingredients using OCR plus lightweight visual heuristics
