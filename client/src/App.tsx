@@ -44,14 +44,15 @@ function OnboardingModal({ open, onClose, onUseDemo }: { open: boolean; onClose:
 function App() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [items, setItems] = useState<PantryItem[]>(demoItems);
-  const [recipes, setRecipes] = useState<Recipe[]>(demoRecipes);
-  const [dayPlans, setDayPlans] = useState<DayPlan[]>(demoPlan);
+  const [items, setItems] = useState<PantryItem[]>([]);
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [dayPlans, setDayPlans] = useState<DayPlan[]>([]);
   const [busy, setBusy] = useState(false);
   const [timeseries, setTimeseries] = useState<Array<{ date: string; wasteScore: number; recipeTitle?: string }>>(
     demoPlan.map((day) => ({ date: day.scheduledDate, wasteScore: day.wasteScore, recipeTitle: day.recipe.title }))
   );
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [appError, setAppError] = useState<string | null>(null);
 
   useEffect(() => {
     const visited = window.localStorage.getItem("wastenotchef:onboarded");
@@ -78,8 +79,18 @@ function App() {
 
   async function handleFile(file: File) {
     setBusy(true);
+    setAppError(null);
     try {
       const uploadedItems = await uploadPhoto(file);
+      if (uploadedItems.length === 0) {
+        setItems([]);
+        setRecipes([]);
+        setDayPlans([]);
+        setAppError("No confident ingredients were detected from this photo. Try a closer, better-lit image or use the demo fridge.");
+        navigate("/fridge");
+        return;
+      }
+
       setItems(uploadedItems);
       const nextRecipes = await fetchRecipes(uploadedItems);
       setRecipes(nextRecipes);
@@ -93,10 +104,8 @@ function App() {
       setTimeseries(planned.map((day) => ({ date: day.scheduledDate, wasteScore: day.wasteScore, recipeTitle: day.recipe.title })));
       navigate("/fridge");
     } catch (error) {
-      console.warn("API unavailable, using demo content.", error);
-      setItems(demoItems);
-      setRecipes(demoRecipes);
-      setDayPlans(demoPlan);
+      console.warn("API unavailable during upload.", error);
+      setAppError("We could not analyze this upload right now. Check the live API connection or try again in a moment.");
       navigate("/fridge");
     } finally {
       setBusy(false);
@@ -158,6 +167,11 @@ function App() {
         </header>
 
         <main className="py-8">
+          {appError ? (
+            <div className="mb-6 rounded-[1.5rem] border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+              {appError}
+            </div>
+          ) : null}
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}

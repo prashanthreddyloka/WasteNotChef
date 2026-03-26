@@ -116,15 +116,5 @@ export async function analyzeFridgePhoto(
     }
   }
 
-  if (deduped.size === 0) {
-    return ingredientRules.slice(0, 4).map((rule, index) => ({
-      id: buildDeterministicId(rule.name, index),
-      name: rule.name,
-      confidence: 0.42,
-      inferredExpiry: formatDate(inferExpiryDate(referenceDate, rule.shelfLifeDays)),
-      notes: "Fallback demo items used because OCR did not confidently detect a product."
-    }));
-  }
-
   return Array.from(deduped.values());
 }
