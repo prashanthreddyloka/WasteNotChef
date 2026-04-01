@@ -31,7 +31,7 @@ type GeminiCandidate = {
   name: string;
   confidence: number;
   quantityEstimate?: string;
-  packaging?: string;
+  visiblePackaging?: string;
   freshnessClue?: string;
   readableDate?: string;
   notes?: string;
@@ -119,7 +119,8 @@ function nearestExpiryForWord(word: OcrWord, expiryWords: Array<{ date: string; 
     return null;
   }
 
-  if (!word.bbox) {
+  const wordBbox = word.bbox;
+  if (!wordBbox) {
     return expiryWords[0]?.date ?? null;
   }
 
@@ -127,8 +128,8 @@ function nearestExpiryForWord(word: OcrWord, expiryWords: Array<{ date: string; 
     if (!entry.bbox) {
       return { date: entry.date, distance: Number.MAX_SAFE_INTEGER };
     }
-    const dx = entry.bbox.x - word.bbox.x;
-    const dy = entry.bbox.y - word.bbox.y;
+    const dx = entry.bbox.x - wordBbox.x;
+    const dy = entry.bbox.y - wordBbox.y;
     return { date: entry.date, distance: Math.sqrt(dx * dx + dy * dy) };
   });
 
