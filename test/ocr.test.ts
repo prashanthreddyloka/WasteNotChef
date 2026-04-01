@@ -14,6 +14,7 @@ describe("analyzeFridgePhoto", () => {
 
   afterEach(() => {
     delete process.env.MOCK_OCR_TEXT;
+    delete process.env.MOCK_GEMINI_INGREDIENTS;
     if (fs.existsSync(fixturePath)) {
       fs.unlinkSync(fixturePath);
     }
@@ -31,6 +32,45 @@ describe("analyzeFridgePhoto", () => {
     );
 
     expect(items.map((item) => item.name)).toEqual(expect.arrayContaining(["milk", "spinach", "eggs"]));
+    expect(items.find((item) => item.name === "milk")?.detectedExpiry).toBe("2026-04-02");
+  });
+
+  it("prefers Gemini visual detections when available and still preserves dates", async () => {
+    process.env.MOCK_GEMINI_INGREDIENTS = JSON.stringify({
+      items: [
+        {
+          name: "orange juice",
+          confidence: 0.92,
+          quantityEstimate: "2 bottles",
+          visiblePackaging: "orange beverage bottles",
+          freshnessClue: "",
+          readableDate: "",
+          notes: "Visible bright orange bottles on the door."
+        },
+        {
+          name: "milk",
+          confidence: 0.87,
+          quantityEstimate: "1 carton",
+          visiblePackaging: "white bottle",
+          freshnessClue: "",
+          readableDate: "",
+          notes: "Visible white milk bottle."
+        }
+      ]
+    });
+
+    const items = await analyzeFridgePhoto(
+      fixturePath,
+      [
+        { name: "milk", shelfLifeDays: 7 },
+        { name: "orange juice", shelfLifeDays: 7 },
+        { name: "spinach", shelfLifeDays: 5 }
+      ],
+      new Date("2026-03-25")
+    );
+
+    expect(items.find((item) => item.name === "orange juice")?.detectionSource).toBe("gemini");
+    expect(items.find((item) => item.name === "milk")?.detectionSource).toBe("merged");
     expect(items.find((item) => item.name === "milk")?.detectedExpiry).toBe("2026-04-02");
   });
 

@@ -17,11 +17,15 @@ export function Fridge({ items, onUpdateItem, onAddItem, onGenerateRecipes, gene
 
   function sourceLabel(item: PantryItem) {
     if (item.detectionSource === "merged") {
-      return "visual + OCR";
+      return "Gemini / visual + OCR";
     }
 
     if (item.detectionSource === "manual") {
       return "manual entry";
+    }
+
+    if (item.detectionSource === "gemini") {
+      return "Gemini vision";
     }
 
     if (item.detectionSource === "visual") {
