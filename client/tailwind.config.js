@@ -4,10 +4,10 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink: "#101828",
-        mist: "#eef4ff",
+        ink: "#183f34",
+        mist: "#eef1e8",
         glow: "#dff6df",
-        coral: "#ff8762",
+        coral: "#c75a38",
         teal: "#0f766e",
         oat: "#fff9ef"
       },
@@ -16,7 +16,7 @@ export default {
         display: ["Fraunces", "ui-serif", "Georgia"]
       },
       boxShadow: {
-        float: "0 30px 80px rgba(16, 24, 40, 0.16)"
+        float: "0 12px 30px rgba(40, 65, 42, 0.07), 0 3px 0 rgba(40, 65, 42, 0.04)"
       },
       backgroundImage: {
         hero: "radial-gradient(circle at top left, rgba(255,255,255,0.96), rgba(223,246,223,0.76) 38%, rgba(206,232,255,0.84) 78%, rgba(255,249,239,0.96) 100%)"

@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { useState } from "react";
+import { KitchenScene } from "../components/KitchenScene";
 
 type LoginProps = {
   onGuestLogin: () => void;
@@ -12,26 +13,15 @@ export function Login({ onGuestLogin, onLocalLogin }: LoginProps) {
 
   return (
     <div className="mx-auto grid min-h-[70vh] max-w-6xl items-center gap-8 lg:grid-cols-[1.1fr_0.9fr]">
-      <div className="rounded-[2.5rem] bg-hero p-8 shadow-float">
+      <div className="login-intro">
         <p className="text-sm font-semibold uppercase tracking-[0.35em] text-teal-700">Welcome back</p>
         <h1 className="mt-4 font-display text-5xl leading-tight text-ink">
-          Sign in or continue as a guest to keep your fridge, recipes, and plans in sync.
+          A fresh start for<br />the food you love.
         </h1>
         <p className="mt-5 max-w-xl text-lg leading-8 text-slate-600">
-          Guest mode works instantly and stores your progress on this device. Local sign-in keeps a named profile for reminders and a more personal experience.
+          Your groceries have good things ahead. Scan, plan, and make more of what’s already in your kitchen.
         </p>
-        <div className="mt-8 grid gap-3 sm:grid-cols-3">
-          {[
-            ["Guest mode", "Instant access"],
-            ["Recipes", "Fresh from your latest fridge"],
-            ["Reminders", "Browser and email preferences"]
-          ].map(([title, copy]) => (
-            <div key={title} className="rounded-[1.5rem] border border-white/70 bg-white/70 p-4">
-              <div className="font-semibold text-ink">{title}</div>
-              <div className="mt-1 text-sm text-slate-500">{copy}</div>
-            </div>
-          ))}
-        </div>
+        <KitchenScene />
       </div>
 
       <motion.div
@@ -41,7 +31,7 @@ export function Login({ onGuestLogin, onLocalLogin }: LoginProps) {
       >
         <h2 className="font-display text-3xl text-ink">Start cooking smarter</h2>
         <p className="mt-3 text-sm leading-7 text-slate-600">
-          Use guest mode for a fast demo, or create a light local profile for named reminder preferences.
+          Jump in as a guest or create a local profile. Your kitchen is saved on this device.
         </p>
 
         <button

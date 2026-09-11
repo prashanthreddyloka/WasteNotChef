@@ -1,200 +1,34 @@
-import { motion } from "framer-motion";
 import { useState } from "react";
 import type { PantryItem } from "../types";
 import { ReceiptUpload } from "../components/ReceiptUpload";
+import { PantryCard } from "../components/PantryCard";
 
-type FridgeProps = {
-  items: PantryItem[];
-  onItemsAdded: (items: PantryItem[]) => void;
-  onUpdateItem: (id: string, updates: Partial<PantryItem>) => void;
-  onAddItem: (item: PantryItem) => void;
-  onGenerateRecipes: () => Promise<void> | void;
-  generatingRecipes?: boolean;
-};
+type FridgeProps = { items: PantryItem[]; onItemsAdded: (items: PantryItem[]) => void; onUpdateItem: (id: string, updates: Partial<PantryItem>) => void; onRemoveItem: (id: string) => void; onAddItem: (item: PantryItem) => void; onGenerateRecipes: () => Promise<void> | void; generatingRecipes?: boolean };
 
-export function Fridge({ items, onUpdateItem, onAddItem, onGenerateRecipes, generatingRecipes, onItemsAdded }: FridgeProps) {
+export function Fridge({ items, onUpdateItem, onRemoveItem, onAddItem, onGenerateRecipes, generatingRecipes, onItemsAdded }: FridgeProps) {
   const [draftName, setDraftName] = useState("");
   const [draftQuantity, setDraftQuantity] = useState("");
   const [draftExpiry, setDraftExpiry] = useState("");
-
-  function sourceLabel(item: PantryItem) {
-    if (item.id.startsWith("receipt-")) return "receipt scan";
-    if (item.detectionSource === "merged") {
-      return "Gemini / visual + OCR";
-    }
-
-    if (item.detectionSource === "manual") {
-      return "manual entry";
-    }
-
-    if (item.detectionSource === "gemini") {
-      return "Gemini vision";
-    }
-
-    if (item.detectionSource === "visual") {
-      return "visual estimate";
-    }
-
-    return "OCR label";
-  }
-
-  function expiryLabel(item: PantryItem) {
-    if (item.expirySource === "ocr") {
-      return "date from OCR";
-    }
-
-    if (item.expirySource === "rule") {
-      return "date from shelf-life rule";
-    }
-
-    return "no date found";
-  }
-
-  function addManualItem() {
-    const normalizedName = draftName.trim();
-    if (!normalizedName) {
-      return;
-    }
-
-    onAddItem({
-      id: `manual-${normalizedName.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}`,
-      name: normalizedName.toLowerCase(),
-      quantity: draftQuantity.trim() || undefined,
-      detectedExpiry: draftExpiry || null,
-      inferredExpiry: null,
-      confidence: 1,
-      detectionSource: "manual",
-      expirySource: draftExpiry ? "ocr" : "none",
-      notes: "Added manually after review."
-    });
-
-    setDraftName("");
-    setDraftQuantity("");
-    setDraftExpiry("");
-  }
-
+  const [removed, setRemoved] = useState<PantryItem | null>(null);
+  const [message, setMessage] = useState("");
+  const [query, setQuery] = useState("");
+  const visible = items.filter(item => item.name.toLowerCase().includes(query.toLowerCase()));
   return (
-    <div className="space-y-6">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-teal-700">Fridge review</p>
-          <h1 className="mt-2 font-display text-4xl text-ink">Detected ingredients</h1>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={() => void onGenerateRecipes()}
-            disabled={generatingRecipes || items.length === 0}
-            className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300"
-          >
-            {generatingRecipes ? "Generating..." : "Get Recipes"}
-          </button>
-          <div className="rounded-full bg-white/80 px-4 py-2 text-sm text-slate-500 shadow-sm">Edit dates or add missing items before generating the week quest</div>
-        </div>
-      </div>
-
-      <ReceiptUpload onItemsAdded={onItemsAdded} />
-      <div className="rounded-[2rem] border border-white/70 bg-white/85 p-5 shadow-float">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-coral">Missing something?</p>
-            <h2 className="mt-2 font-display text-3xl text-ink">Add an item manually</h2>
-            <p className="mt-2 text-sm text-slate-600">
-              If the upload missed an ingredient, add it here and it will flow into recipes and planning like any detected item.
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-5 grid gap-3 md:grid-cols-[1.2fr_0.9fr_0.9fr_auto]">
-          <input
-            type="text"
-            value={draftName}
-            onChange={(event) => setDraftName(event.target.value)}
-            placeholder="Item name, for example yogurt or strawberries"
-            className="rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-teal-400"
-          />
-          <input
-            type="text"
-            value={draftQuantity}
-            onChange={(event) => setDraftQuantity(event.target.value)}
-            placeholder="Quantity"
-            className="rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-teal-400"
-          />
-          <input
-            type="date"
-            value={draftExpiry}
-            onChange={(event) => setDraftExpiry(event.target.value)}
-            className="rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-teal-400"
-          />
-          <button
-            type="button"
-            onClick={addManualItem}
-            className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-900"
-          >
-            Add item
-          </button>
-        </div>
-      </div>
-
-      {items.length === 0 ? (
-        <div className="rounded-[2rem] border border-dashed border-slate-300 bg-white/70 p-10 text-center shadow-float">
-          <h2 className="font-display text-3xl text-ink">No confident detections yet</h2>
-          <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-slate-600">
-            This usually means the photo had glare, distant packaging, or no readable labels. Try a closer image with better lighting,
-            or use the demo fridge from the onboarding modal.
-          </p>
-        </div>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {items.map((item, index) => (
-            <motion.article
-              key={item.id}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.04 }}
-              className="rounded-[1.8rem] border border-white/70 bg-white/85 p-5 shadow-float"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="font-display text-2xl text-ink">{item.name}</h2>
-                  {item.quantity && <p className="mt-1 text-sm text-slate-600">Quantity: {item.quantity}</p>}
-                  <p className="mt-1 text-sm text-slate-500">{item.notes ?? "OCR-derived item"}</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <span className="rounded-full bg-oat px-3 py-1 text-xs font-semibold text-slate-700">
-                      {sourceLabel(item)}
-                    </span>
-                    <span className="rounded-full bg-mist px-3 py-1 text-xs font-semibold text-slate-600">
-                      {expiryLabel(item)}
-                    </span>
-                  </div>
-                </div>
-                <span className="rounded-full bg-mist px-3 py-1 text-xs font-semibold text-slate-600">
-                  {Math.round(item.confidence * 100)}% confident
-                </span>
-              </div>
-
-              <label className="mt-5 block text-sm font-medium text-slate-600">
-                Expiry date
-                <input
-                  type="date"
-                  value={item.detectedExpiry ?? item.inferredExpiry ?? ""}
-                  onChange={(event) => onUpdateItem(item.id, { detectedExpiry: event.target.value })}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 focus:border-teal-400"
-                />
-              </label>
-
-              <div className="mt-4 flex gap-3">
-                <button type="button" className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white">
-                  Add to pantry
-                </button>
-                <button type="button" className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600">
-                  Ignore
-                </button>
-              </div>
-            </motion.article>
-          ))}
-        </div>
-      )}
+    <div className="pantry-page space-y-7">
+      <div className="pantry-heading"><div><p className="eyebrow">YOUR EVERYDAY INGREDIENTS</p><h1>A little pantry.<br /><em>A lot of possibility.</em></h1><p>Review what you have. Make something you love.</p></div><div className="pantry-summary"><strong>{items.length.toString().padStart(2, "0")}</strong><span>ingredients in your kitchen</span><button type="button" onClick={() => void onGenerateRecipes()} disabled={generatingRecipes || !items.length} className="primary-action">{generatingRecipes ? "Finding inspiration…" : "Find recipes →"}</button></div></div>
+      <div className="pantry-tools"><ReceiptUpload onItemsAdded={onItemsAdded} /><section className="manual-entry"><p className="eyebrow">JUST ONE MORE THING</p><h2>Add it yourself.</h2><p>Something missing? Make a little room for it here.</p>
+        <form onSubmit={event => {
+          event.preventDefault(); if (!draftName.trim()) return;
+          const selectedExpiry = String(new FormData(event.currentTarget).get("expiry") ?? "");
+          onAddItem({ id: `manual-${crypto.randomUUID()}`, name: draftName.trim(), quantity: draftQuantity.trim() || undefined, detectedExpiry: selectedExpiry || null, inferredExpiry: null, confidence: 1, detectionSource: "manual", expirySource: selectedExpiry ? "manual" : "none", reviewed: true, notes: "Added manually." });
+          setMessage(`${draftName.trim()} added to your pantry.`); setDraftName(""); setDraftQuantity(""); setDraftExpiry("");
+        }}><label>Ingredient name<input required maxLength={80} placeholder="e.g. cherry tomatoes" value={draftName} onChange={event => setDraftName(event.target.value)} /></label><div className="manual-fields"><label>Quantity<input maxLength={60} placeholder="e.g. 1 box" value={draftQuantity} onChange={event => setDraftQuantity(event.target.value)} /></label><label>Expiry date<input type="date" name="expiry" value={draftExpiry} onChange={event => setDraftExpiry(event.target.value)} /></label></div><button type="submit" className="secondary-action">+ Add ingredient</button></form>
+      </section></div>
+      <div className="inventory-toolbar"><h2>On the shelf <span>{items.length}</span></h2><label><span className="sr-only">Search ingredients</span><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Find an ingredient…" /></label></div>
+      {removed && <div className="undo-banner" role="status"><span>{removed.name} removed.</span><button type="button" onClick={() => { if (!items.some(item => item.id === removed.id)) onAddItem(removed); setMessage(`${removed.name} restored.`); setRemoved(null); }}>Undo removal</button></div>}
+      <p className="sr-only" role="status">{message}</p>
+      {!visible.length ? <div className="pantry-empty"><span aria-hidden="true">✳</span><h2>{items.length ? "Nothing on this shelf yet." : "Your next good meal starts here."}</h2><p>{items.length ? "Try a different ingredient name." : "Scan a receipt or add your first ingredient above."}</p></div> : <div className="pantry-grid">{visible.map(item => <PantryCard key={item.id} item={item} onSave={updates => { onUpdateItem(item.id, updates); setMessage(`${updates.name ?? item.name} saved.`); }} onRemove={() => { onRemoveItem(item.id); setRemoved(item); setMessage(`${item.name} removed.`); }} />)}</div>}
+      <p className="pantry-storage-note">Your edits are saved on this device. Estimated dates are a guide; always check the packaging.</p>
     </div>
   );
 }

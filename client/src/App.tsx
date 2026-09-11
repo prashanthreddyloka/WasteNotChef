@@ -74,6 +74,7 @@ function App() {
   );
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [appError, setAppError] = useState<string | null>(null);
+  const [storageReady, setStorageReady] = useState(false);
 
   useEffect(() => {
     try {
@@ -104,6 +105,8 @@ function App() {
       }
     } catch (error) {
       console.warn("Could not restore saved app state.", error);
+    } finally {
+      setStorageReady(true);
     }
   }, []);
 
@@ -115,26 +118,30 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (!storageReady) return;
     window.localStorage.setItem(STORAGE_KEYS.items, JSON.stringify(items));
-  }, [items]);
+  }, [items, storageReady]);
 
   useEffect(() => {
+    if (!storageReady) return;
     window.localStorage.setItem(STORAGE_KEYS.recipes, JSON.stringify(recipes));
-  }, [recipes]);
+  }, [recipes, storageReady]);
 
   useEffect(() => {
+    if (!storageReady) return;
     window.localStorage.setItem(STORAGE_KEYS.dayPlans, JSON.stringify(dayPlans));
-  }, [dayPlans]);
+  }, [dayPlans, storageReady]);
 
   useEffect(() => {
-    if (session) {
+    if (storageReady && session) {
       window.localStorage.setItem(STORAGE_KEYS.session, JSON.stringify(session));
     }
-  }, [session]);
+  }, [session, storageReady]);
 
   useEffect(() => {
+    if (!storageReady) return;
     window.localStorage.setItem(STORAGE_KEYS.notificationPrefs, JSON.stringify(notificationPrefs));
-  }, [notificationPrefs]);
+  }, [notificationPrefs, storageReady]);
 
   useEffect(() => {
     console.log("[analytics-stub]", { path: location.pathname, timestamp: new Date().toISOString() });
@@ -298,20 +305,20 @@ function App() {
 
   if (!session) {
     return (
-      <div className="min-h-screen bg-[#f4f8fb] px-4 py-8 text-ink sm:px-6 lg:px-8">
+      <div className="app-shell min-h-screen px-4 py-8 text-ink sm:px-6 lg:px-8">
         <Login onGuestLogin={handleGuestLogin} onLocalLogin={handleLocalLogin} />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#f4f8fb] text-ink">
+    <div className="app-shell min-h-screen text-ink">
       <OnboardingModal open={showOnboarding} onClose={() => closeOnboarding(false)} onUseDemo={() => closeOnboarding(true)} />
       <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
-        <header className="sticky top-4 z-40 rounded-full border border-white/70 bg-white/80 px-4 py-3 shadow-lg backdrop-blur">
+        <header className="kitchen-nav sticky top-4 z-40 px-4 py-3 backdrop-blur">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <Link to="/" className="font-display text-2xl text-ink">
-              WasteNotChef
+              <span className="brand-leaf" aria-hidden="true">✳</span> WasteNotChef
             </Link>
             <div className="flex flex-wrap items-center gap-3">
               <nav className="flex flex-wrap gap-2">
@@ -319,6 +326,7 @@ function App() {
                   <Link
                     key={href}
                     to={href}
+                    aria-current={location.pathname === href ? "page" : undefined}
                     className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
                       location.pathname === href ? "bg-ink text-white" : "text-slate-600 hover:bg-slate-100"
                     }`}
@@ -362,6 +370,7 @@ function App() {
                   element={
                     <Fridge
                       items={items}
+                      onRemoveItem={id => updateItems(current => current.filter(item => item.id !== id))}
                       onItemsAdded={(added) => {
                         if (!added.length) return;
                         updateItems(current => {
