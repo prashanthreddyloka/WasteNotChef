@@ -362,6 +362,13 @@ function App() {
                   element={
                     <Fridge
                       items={items}
+                      onItemsAdded={(added) => {
+                        if (!added.length) return;
+                        updateItems(current => {
+                          const existing = new Set(current.map(item => item.id));
+                          return [...current, ...added.filter(item => !existing.has(item.id))];
+                        });
+                      }}
                       onAddItem={(item) => updateItems((current) => [item, ...current])}
                       onGenerateRecipes={generateRecipesForCurrentItems}
                       generatingRecipes={recipesBusy}

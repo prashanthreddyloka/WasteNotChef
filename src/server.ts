@@ -6,6 +6,7 @@ import { recipesRouter } from "./routes/recipes";
 import { chatRouter } from "./routes/chat";
 import { uploadRouter } from "./routes/upload";
 import { wasteRouter } from "./routes/waste";
+import { receiptRouter } from "./routes/receipt";
 
 dotenv.config();
 
@@ -43,6 +44,7 @@ export function createServer() {
   );
   app.use(express.json({ limit: "5mb" }));
   app.use("/api/upload-photo", uploadRouter);
+  app.use("/api/upload-receipt", receiptRouter);
   app.use("/api/recipes", recipesRouter);
   app.use("/api/chat", chatRouter);
   app.use("/api/plan", planRouter);

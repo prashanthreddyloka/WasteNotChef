@@ -2,6 +2,17 @@ import type { DayPlan, PantryItem, PlannerPreferences, Recipe } from "../types";
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? "http://localhost:4000/api";
 
+export async function uploadReceipt(file: File): Promise<{ items: PantryItem[]; skippedLines: number }> {
+  const formData = new FormData();
+  formData.append("image", file);
+  const response = await fetch(`${API_BASE}/upload-receipt`, { method: "POST", body: formData });
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new Error(data?.error ?? "Receipt scan failed. Please try again.");
+  }
+  return response.json();
+}
+
 export async function uploadPhoto(file: File): Promise<PantryItem[]> {
   const formData = new FormData();
   formData.append("image", file);

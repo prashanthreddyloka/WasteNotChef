@@ -37,7 +37,7 @@ type GeminiCandidate = {
   notes?: string;
 };
 
-const FOOD_KEYWORDS = [
+export const FOOD_KEYWORDS = [
   "milk", "eggs", "spinach", "lettuce", "yogurt", "cheese", "butter", "chicken",
   "salmon", "tofu", "broccoli", "carrots", "bell pepper", "tomato", "cucumber",
   "strawberries", "blueberries", "apples", "bananas", "grapes", "mushrooms",

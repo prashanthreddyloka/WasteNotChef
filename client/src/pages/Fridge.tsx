@@ -1,21 +1,24 @@
 import { motion } from "framer-motion";
 import { useState } from "react";
 import type { PantryItem } from "../types";
+import { ReceiptUpload } from "../components/ReceiptUpload";
 
 type FridgeProps = {
   items: PantryItem[];
+  onItemsAdded: (items: PantryItem[]) => void;
   onUpdateItem: (id: string, updates: Partial<PantryItem>) => void;
   onAddItem: (item: PantryItem) => void;
   onGenerateRecipes: () => Promise<void> | void;
   generatingRecipes?: boolean;
 };
 
-export function Fridge({ items, onUpdateItem, onAddItem, onGenerateRecipes, generatingRecipes }: FridgeProps) {
+export function Fridge({ items, onUpdateItem, onAddItem, onGenerateRecipes, generatingRecipes, onItemsAdded }: FridgeProps) {
   const [draftName, setDraftName] = useState("");
   const [draftQuantity, setDraftQuantity] = useState("");
   const [draftExpiry, setDraftExpiry] = useState("");
 
   function sourceLabel(item: PantryItem) {
+    if (item.id.startsWith("receipt-")) return "receipt scan";
     if (item.detectionSource === "merged") {
       return "Gemini / visual + OCR";
     }
@@ -90,6 +93,7 @@ export function Fridge({ items, onUpdateItem, onAddItem, onGenerateRecipes, gene
         </div>
       </div>
 
+      <ReceiptUpload onItemsAdded={onItemsAdded} />
       <div className="rounded-[2rem] border border-white/70 bg-white/85 p-5 shadow-float">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -153,6 +157,7 @@ export function Fridge({ items, onUpdateItem, onAddItem, onGenerateRecipes, gene
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h2 className="font-display text-2xl text-ink">{item.name}</h2>
+                  {item.quantity && <p className="mt-1 text-sm text-slate-600">Quantity: {item.quantity}</p>}
                   <p className="mt-1 text-sm text-slate-500">{item.notes ?? "OCR-derived item"}</p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     <span className="rounded-full bg-oat px-3 py-1 text-xs font-semibold text-slate-700">

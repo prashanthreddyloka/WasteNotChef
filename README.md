@@ -169,3 +169,11 @@ Recommended:
 - Add shared household mode and collaborative planning
 - Add saved recipes and scan history
 - Add streaming AI chat responses and richer pantry-aware tool use
+
+## Receipt scanning
+- Open **Fridge → Upload receipt** and choose a JPEG, PNG, or WebP photo/screenshot (maximum 10 MB).
+- `POST /api/upload-receipt` accepts multipart field `image`, reads it with Tesseract, and adds recognized priced food lines to pantry storage atomically. Existing inventory is retained; quantities are shown in the list.
+- Household/pet products, discounts, totals, and payment lines are excluded. The parser uses a food vocabulary and common abbreviations; unknown products or layouts without prices on the same line are skipped. Review the resulting inventory for OCR mistakes.
+- Receipt dates are never treated as expiry dates. Where available, shelf-life rules estimate expiry from the upload date; check the packaging.
+- The same image bytes produce stable item IDs, so retries do not create duplicates. A different photograph of the same receipt is considered a new receipt.
+- No matches leaves inventory unchanged. OCR/API failures show an error. Temporary receipt images are deleted after processing, and the browser retains its inventory across refreshes.
