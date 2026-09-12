@@ -1,7 +1,6 @@
 import { type NextFunction, type Request, type Response, Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db/prismaClient";
-import { formatDate } from "../utils/dates";
 
 const querySchema = z.object({
   from: z.string(),
@@ -13,8 +12,10 @@ export const wasteRouter = Router();
 async function handleWasteScore(req: Request, res: Response, next: NextFunction) {
   try {
     const { from, to } = querySchema.parse(req.query);
+    if (!res.locals.user) return res.json({ timeseries: [] });
     const plans = await prisma.weekPlan.findMany({
       where: {
+        userId: res.locals.user.id,
         startDate: { gte: new Date(from) },
         endDate: { lte: new Date(to) }
       },
@@ -24,7 +25,7 @@ async function handleWasteScore(req: Request, res: Response, next: NextFunction)
 
     const timeseries = plans.flatMap((plan) =>
       plan.dayPlans.map((day) => ({
-        date: formatDate(day.scheduledDate),
+        date: day.scheduledDate.toISOString().slice(0, 10),
         wasteScore: day.wasteScore,
         recipeTitle: day.recipeTitle
       }))

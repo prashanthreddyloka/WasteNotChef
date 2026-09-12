@@ -64,7 +64,7 @@ export function fuzzyMatchToken(token: string, keywords: string[]): { match: str
   return best;
 }
 
-export async function runOcr(imagePath: string): Promise<OcrResult> {
+export async function runOcr(imagePath: string | Buffer): Promise<OcrResult> {
   if (process.env.MOCK_OCR_TEXT) {
     const tokens = process.env.MOCK_OCR_TEXT.split(/\s+/).filter(Boolean);
     return {

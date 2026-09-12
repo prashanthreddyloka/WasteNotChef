@@ -1,8 +1,8 @@
-import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { demoItems, demoPlan, demoRecipes } from "./data/demo";
-import { fetchRecipes, fetchWasteSeries, fetchWeekPlan, uploadPhoto } from "./lib/api";
+import { ApiError, currentAccount, endSession, fetchRecipes, fetchWasteSeries, fetchWeekPlan, getSessionToken, setSessionToken, uploadPhoto } from "./lib/api";
+import { readGuestPantry, usePantry } from "./lib/usePantry";
 import { detectVisibleItems, mergeDetectedItems } from "./lib/visualHeuristics";
 import { ChatWidget } from "./components/ChatWidget";
 import { Dashboard } from "./pages/Dashboard";
@@ -14,409 +14,126 @@ import { Recipes } from "./pages/Recipes";
 import { Settings } from "./pages/Settings";
 import type { DayPlan, NotificationPrefs, PantryItem, Recipe, SessionUser } from "./types";
 
-const STORAGE_KEYS = {
-  items: "wastenotchef:items",
-  recipes: "wastenotchef:recipes",
-  dayPlans: "wastenotchef:dayPlans",
-  session: "wastenotchef:session",
-  notificationPrefs: "wastenotchef:notificationPrefs"
-} as const;
-
-function OnboardingModal({ open, onClose, onUseDemo }: { open: boolean; onClose: () => void; onUseDemo: () => void }) {
-  if (!open) {
-    return null;
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-5 backdrop-blur">
-      <motion.div
-        initial={{ opacity: 0, y: 24, scale: 0.96 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        className="w-full max-w-2xl rounded-[2rem] bg-white p-8 shadow-float"
-      >
-        <p className="text-sm font-semibold uppercase tracking-[0.35em] text-teal-700">Welcome</p>
-        <h2 className="mt-3 font-display text-4xl text-ink">Try WasteNotChef with a sample fridge first.</h2>
-        <p className="mt-4 text-slate-600">
-          You'll land with a preloaded pantry, recipes, and an example quest so the interaction flow makes sense immediately.
-        </p>
-        <div className="mt-6 grid gap-3 sm:grid-cols-2">
-          <button type="button" onClick={onUseDemo} className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white">
-            Load demo fridge
-          </button>
-          <button type="button" onClick={onClose} className="rounded-full border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700">
-            Start empty
-          </button>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
 function App() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [items, setItems] = useState<PantryItem[]>([]);
+  const [session, setSession] = useState<SessionUser | null>(null);
+  const [restoring, setRestoring] = useState(true);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [dayPlans, setDayPlans] = useState<DayPlan[]>([]);
-  const [session, setSession] = useState<SessionUser | null>(null);
-  const [notificationPrefs, setNotificationPrefs] = useState<NotificationPrefs>({
-    webPushEnabled: false,
-    emailEnabled: false,
-    email: "",
-    reminderDays: 2,
-    browserPermission:
-      typeof window !== "undefined" && "Notification" in window ? Notification.permission : "default"
-  });
   const [busy, setBusy] = useState(false);
   const [recipesBusy, setRecipesBusy] = useState(false);
-  const [timeseries, setTimeseries] = useState<Array<{ date: string; wasteScore: number; recipeTitle?: string }>>(
-    demoPlan.map((day) => ({ date: day.scheduledDate, wasteScore: day.wasteScore, recipeTitle: day.recipe.title }))
-  );
+  const [appError, setAppError] = useState("");
+  const [recoveryCode, setRecoveryCode] = useState("");
+  const [timeseries, setTimeseries] = useState<Array<{ date: string; wasteScore: number; recipeTitle?: string }>>([]);
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [appError, setAppError] = useState<string | null>(null);
-  const [storageReady, setStorageReady] = useState(false);
-
+  const [notificationPrefs, setNotificationPrefs] = useState<NotificationPrefs>({ webPushEnabled: false, emailEnabled: false, email: "", reminderDays: 2, browserPermission: "Notification" in window ? Notification.permission : "default" });
+  const pantry = usePantry(session);
+  const epoch = useRef(0);
+  const [viewOwner, setViewOwner] = useState<string | null>(null);
+  const viewKey = session?.mode === "account" ? session.id ?? null : session?.mode ?? null;
+  const items = pantry.items;
   useEffect(() => {
-    try {
-      const storedItems = window.localStorage.getItem(STORAGE_KEYS.items);
-      const storedRecipes = window.localStorage.getItem(STORAGE_KEYS.recipes);
-      const storedDayPlans = window.localStorage.getItem(STORAGE_KEYS.dayPlans);
-      const storedSession = window.localStorage.getItem(STORAGE_KEYS.session);
-      const storedNotificationPrefs = window.localStorage.getItem(STORAGE_KEYS.notificationPrefs);
-
-      if (storedItems) {
-        setItems(JSON.parse(storedItems) as PantryItem[]);
-      }
-
-      if (storedRecipes) {
-        setRecipes(JSON.parse(storedRecipes) as Recipe[]);
-      }
-
-      if (storedDayPlans) {
-        setDayPlans(JSON.parse(storedDayPlans) as DayPlan[]);
-      }
-
-      if (storedSession) {
-        setSession(JSON.parse(storedSession) as SessionUser);
-      }
-
-      if (storedNotificationPrefs) {
-        setNotificationPrefs(JSON.parse(storedNotificationPrefs) as NotificationPrefs);
-      }
-    } catch (error) {
-      console.warn("Could not restore saved app state.", error);
-    } finally {
-      setStorageReady(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    const visited = window.localStorage.getItem("wastenotchef:onboarded");
-    if (!visited) {
-      setShowOnboarding(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!storageReady) return;
-    window.localStorage.setItem(STORAGE_KEYS.items, JSON.stringify(items));
-  }, [items, storageReady]);
-
-  useEffect(() => {
-    if (!storageReady) return;
-    window.localStorage.setItem(STORAGE_KEYS.recipes, JSON.stringify(recipes));
-  }, [recipes, storageReady]);
-
-  useEffect(() => {
-    if (!storageReady) return;
-    window.localStorage.setItem(STORAGE_KEYS.dayPlans, JSON.stringify(dayPlans));
-  }, [dayPlans, storageReady]);
-
-  useEffect(() => {
-    if (storageReady && session) {
-      window.localStorage.setItem(STORAGE_KEYS.session, JSON.stringify(session));
-    }
-  }, [session, storageReady]);
-
-  useEffect(() => {
-    if (!storageReady) return;
-    window.localStorage.setItem(STORAGE_KEYS.notificationPrefs, JSON.stringify(notificationPrefs));
-  }, [notificationPrefs, storageReady]);
-
-  useEffect(() => {
-    console.log("[analytics-stub]", { path: location.pathname, timestamp: new Date().toISOString() });
-  }, [location.pathname]);
-
-  const navItems = useMemo(
-    () => [
-      ["/", "Home"],
-      ["/fridge", "Fridge"],
-      ["/recipes", "Recipes"],
-      ["/planner", "Planner"],
-      ["/dashboard", "Dashboard"],
-      ["/settings", "Settings"]
-    ],
-    []
-  );
-
-  async function handleFile(file: File) {
-    setBusy(true);
-    setAppError(null);
-    try {
-      const [uploadedItems, heuristicItems] = await Promise.all([
-        uploadPhoto(file),
-        detectVisibleItems(file).catch(() => [])
-      ]);
-      const mergedItems = mergeDetectedItems(uploadedItems, heuristicItems);
-      if (mergedItems.length === 0) {
-        setItems([]);
-        setRecipes([]);
-        setDayPlans([]);
-        setAppError("No confident ingredients were detected from this photo. Try a closer, better-lit image or use the demo fridge.");
-        navigate("/fridge");
-        return;
-      }
-
-      setItems(mergedItems);
-      const nextRecipes = await fetchRecipes(mergedItems);
-      setRecipes(nextRecipes);
-      const planned = await fetchWeekPlan(mergedItems, {
-        mealsPerDay: 1,
-        skipDays: [],
-        preferCuisineTags: ["quick", "comfort"],
-        maxLeftovers: 2
-      });
-      setDayPlans(planned);
-      setTimeseries(planned.map((day) => ({ date: day.scheduledDate, wasteScore: day.wasteScore, recipeTitle: day.recipe.title })));
-      navigate("/fridge");
-    } catch (error) {
-      console.warn("API unavailable during upload.", error);
-      setAppError("We could not analyze this upload right now. Check the live API connection or try again in a moment.");
-      navigate("/fridge");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function generateRecipesForCurrentItems() {
-    setRecipesBusy(true);
-    setAppError(null);
-    try {
-      const nextRecipes = await fetchRecipes(items);
-      setRecipes(nextRecipes);
-      navigate("/recipes");
-    } catch (error) {
-      console.warn("Recipe generation failed.", error);
-      setAppError("We could not generate recipes from the current fridge items right now. Please try again.");
-    } finally {
-      setRecipesBusy(false);
-    }
-  }
-
-  function updateItems(updater: (current: PantryItem[]) => PantryItem[]) {
-    setItems((current) => updater(current));
-    setRecipes([]);
-  }
-
-  function addRecipeToPlan(recipe: Recipe) {
-    const nextDate = new Date();
-    nextDate.setDate(nextDate.getDate() + dayPlans.length);
-    const scheduledDate = nextDate.toISOString().slice(0, 10);
-
-    setDayPlans((current) => [
-      ...current,
-      {
-        scheduledDate,
-        recipe,
-        itemsConsumed: recipe.ingredients.map((ingredient) => ingredient.name),
-        priority: recipe.score ?? 70,
-        reasoning: "Added manually from recipe suggestions based on your latest fridge items.",
-        leftovers: [],
-        wasteScore: 88
-      }
-    ]);
-    navigate("/planner");
-  }
-
-  useEffect(() => {
-    async function refreshWasteSeries() {
+    let cancelled = false;
+    async function restore() {
       try {
-        const today = new Date();
-        const from = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
-        const to = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-        const result = await fetchWasteSeries(from, to);
-        if (result.timeseries?.length) {
-          setTimeseries(result.timeseries);
+        if (getSessionToken()) { const user = await currentAccount(); if (!cancelled) setSession(user); }
+        else {
+          const local = JSON.parse(localStorage.getItem("wastenotchef:session") ?? "null");
+          if (!cancelled && local && ["guest", "local"].includes(local.mode)) setSession({ mode: "guest", name: "Guest cook" });
         }
       } catch (error) {
-        console.warn("Waste API unavailable, staying on local series.", error);
-      }
+        if (error instanceof ApiError && error.status === 401) setSessionToken(null);
+        if (!cancelled) setAppError(error instanceof Error ? error.message : "Could not restore your session.");
+      } finally { if (!cancelled) setRestoring(false); }
     }
-
-    void refreshWasteSeries();
+    void restore(); return () => { cancelled = true; };
   }, []);
-
-  function closeOnboarding(loadDemo = false) {
-    window.localStorage.setItem("wastenotchef:onboarded", "true");
-    setShowOnboarding(false);
-    if (loadDemo) {
-      setItems(demoItems);
-      setRecipes(demoRecipes);
-      setDayPlans(demoPlan);
-      navigate("/planner");
+  useEffect(() => {
+    epoch.current += 1; setRecipes([]); setDayPlans([]); setTimeseries([]); setViewOwner(viewKey);
+    if (session) {
+      const storage = session.mode === "guest" ? localStorage : sessionStorage;
+      const prefix = session.mode === "guest" ? "wastenotchef:" : `wastenotchef:${session.id}:`;
+      try {
+        const savedRecipes = JSON.parse(storage.getItem(`${prefix}recipes`) ?? "[]");
+        const savedPlans = JSON.parse(storage.getItem(`${prefix}dayPlans`) ?? "[]");
+        if (Array.isArray(savedRecipes)) setRecipes(savedRecipes);
+        if (Array.isArray(savedPlans)) setDayPlans(savedPlans);
+      } catch { /* Invalid browser caches do not prevent opening the pantry. */ }
     }
-  }
-
-  function handleGuestLogin() {
-    setSession({ mode: "guest", name: "Guest cook" });
-  }
-
-  function handleLocalLogin(payload: { name: string; email: string }) {
-    setSession({ mode: "local", name: payload.name, email: payload.email });
-    setNotificationPrefs((current) => ({
-      ...current,
-      email: payload.email,
-      emailEnabled: true
-    }));
-  }
-
-  async function enableBrowserNotifications() {
-    if (!("Notification" in window)) {
-      setAppError("This browser does not support notifications.");
-      return;
+    setNotificationPrefs(current => ({ ...current, email: session?.email ?? "", emailEnabled: false }));
+    setShowOnboarding(session?.mode === "guest" && !localStorage.getItem("wastenotchef:onboarded"));
+  }, [session?.id, session?.mode]);
+  useEffect(() => {
+    if (!session || viewOwner !== viewKey) return;
+    const storage = session.mode === "guest" ? localStorage : sessionStorage;
+    const prefix = session.mode === "guest" ? "wastenotchef:" : `wastenotchef:${session.id}:`;
+    try { storage.setItem(`${prefix}recipes`, JSON.stringify(recipes)); storage.setItem(`${prefix}dayPlans`, JSON.stringify(dayPlans)); } catch { /* Inventory saving reports its own storage errors. */ }
+  }, [recipes, dayPlans, viewOwner, viewKey]);
+  useEffect(() => {
+    let cancelled = false;
+    if (session?.mode === "account") {
+      const today = new Date();
+      void fetchWasteSeries(`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-01`, today.toISOString().slice(0,10)).then(result => { if (!cancelled) setTimeseries(result.timeseries ?? []); }).catch(() => {});
     }
+    return () => { cancelled = true; };
+  }, [session?.id]);
 
-    const permission = await Notification.requestPermission();
-    setNotificationPrefs((current) => ({
-      ...current,
-      webPushEnabled: permission === "granted",
-      browserPermission: permission
-    }));
+  async function updateItems(updater: (current: PantryItem[]) => PantryItem[]) { await pantry.update(updater); setRecipes([]); }
+  async function addItems(added: PantryItem[]) {
+    if (!added.length) return;
+    await updateItems(current => { const existing = new Set(current.map(item => item.id)); return [...current, ...added.filter(item => !existing.has(item.id))]; });
   }
-
-  function updateNotificationPrefs(updates: Partial<NotificationPrefs>) {
-    setNotificationPrefs((current) => ({ ...current, ...updates }));
+  async function handleFile(file: File) {
+    setBusy(true); setAppError(""); const current = epoch.current;
+    try {
+      const [uploaded, visual] = await Promise.all([uploadPhoto(file), detectVisibleItems(file).catch(() => [])]);
+      if (current !== epoch.current) return;
+      const added = mergeDetectedItems(uploaded, visual);
+      if (!added.length) { setAppError("No confident ingredients found. Try a clearer photo or add items manually."); return; }
+      await addItems(added); navigate("/fridge");
+    } catch (error) { setAppError(error instanceof Error ? error.message : "Could not analyze this photo."); }
+    finally { setBusy(false); }
   }
-
-  function logout() {
-    window.localStorage.removeItem(STORAGE_KEYS.session);
-    setSession(null);
+  async function generateRecipes() {
+    setRecipesBusy(true); setAppError(""); const current = epoch.current;
+    try { const result = await fetchRecipes(items); if (current === epoch.current) { setRecipes(result); navigate("/recipes"); } }
+    catch (error) { setAppError(error instanceof Error ? error.message : "Could not find recipes."); }
+    finally { setRecipesBusy(false); }
   }
-
-  if (!session) {
-    return (
-      <div className="app-shell min-h-screen px-4 py-8 text-ink sm:px-6 lg:px-8">
-        <Login onGuestLogin={handleGuestLogin} onLocalLogin={handleLocalLogin} />
-      </div>
-    );
+  async function planCurrentPantry() {
+    setBusy(true); setAppError(""); const current = epoch.current;
+    try {
+      const result = await fetchWeekPlan(items, { mealsPerDay: 1, skipDays: [], preferCuisineTags: [], maxLeftovers: 2 });
+      if (current === epoch.current) { setDayPlans(result); setTimeseries(result.map(day => ({ date: day.scheduledDate, wasteScore: day.wasteScore, recipeTitle: day.recipe.title }))); }
+    } catch (error) { setAppError(error instanceof Error ? error.message : "Could not plan your week."); }
+    finally { setBusy(false); }
   }
-
-  return (
-    <div className="app-shell min-h-screen text-ink">
-      <OnboardingModal open={showOnboarding} onClose={() => closeOnboarding(false)} onUseDemo={() => closeOnboarding(true)} />
-      <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
-        <header className="kitchen-nav sticky top-4 z-40 px-4 py-3 backdrop-blur">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <Link to="/" className="font-display text-2xl text-ink">
-              <span className="brand-leaf" aria-hidden="true">✳</span> WasteNotChef
-            </Link>
-            <div className="flex flex-wrap items-center gap-3">
-              <nav className="flex flex-wrap gap-2">
-                {navItems.map(([href, label]) => (
-                  <Link
-                    key={href}
-                    to={href}
-                    aria-current={location.pathname === href ? "page" : undefined}
-                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                      location.pathname === href ? "bg-ink text-white" : "text-slate-600 hover:bg-slate-100"
-                    }`}
-                  >
-                    {label}
-                  </Link>
-                ))}
-              </nav>
-              <div className="rounded-full bg-mist px-4 py-2 text-sm font-semibold text-slate-700">
-                {session.name}
-              </div>
-              <button
-                type="button"
-                onClick={logout}
-                className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
-              >
-                Log out
-              </button>
-            </div>
-          </div>
-        </header>
-
-        <main className="py-8">
-          {appError ? (
-            <div className="mb-6 rounded-[1.5rem] border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
-              {appError}
-            </div>
-          ) : null}
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={location.pathname}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.3 }}
-            >
-              <Routes>
-                <Route path="/" element={<Landing onDemoUpload={handleFile} busy={busy} />} />
-                <Route
-                  path="/fridge"
-                  element={
-                    <Fridge
-                      items={items}
-                      onRemoveItem={id => updateItems(current => current.filter(item => item.id !== id))}
-                      onItemsAdded={(added) => {
-                        if (!added.length) return;
-                        updateItems(current => {
-                          const existing = new Set(current.map(item => item.id));
-                          return [...current, ...added.filter(item => !existing.has(item.id))];
-                        });
-                      }}
-                      onAddItem={(item) => updateItems((current) => [item, ...current])}
-                      onGenerateRecipes={generateRecipesForCurrentItems}
-                      generatingRecipes={recipesBusy}
-                      onUpdateItem={(id, updates) =>
-                        updateItems((current) => current.map((item) => (item.id === id ? { ...item, ...updates } : item)))
-                      }
-                    />
-                  }
-                />
-                <Route
-                  path="/recipes"
-                  element={
-                    <Recipes
-                      recipes={recipes}
-                      onAddToPlan={addRecipeToPlan}
-                    />
-                  }
-                />
-                <Route path="/planner" element={<Planner dayPlans={dayPlans} onReorder={setDayPlans} />} />
-                <Route path="/dashboard" element={<Dashboard timeseries={timeseries} />} />
-                <Route
-                  path="/settings"
-                  element={
-                    <Settings
-                      session={session}
-                      notificationPrefs={notificationPrefs}
-                      onUpdateNotificationPrefs={updateNotificationPrefs}
-                      onEnableBrowserNotifications={enableBrowserNotifications}
-                    />
-                  }
-                />
-              </Routes>
-            </motion.div>
-          </AnimatePresence>
-        </main>
-      </div>
-      <ChatWidget currentPage={location.pathname} pantryItems={items} />
-    </div>
-  );
+  function guestLogin() { setSessionToken(null); setSession({ mode: "guest", name: "Guest cook" }); localStorage.setItem("wastenotchef:session", JSON.stringify({ mode: "guest" })); setAppError(""); }
+  async function logout() {
+    try { if (session?.mode === "account") await endSession(); else setSessionToken(null); epoch.current += 1; setSession(null); localStorage.removeItem("wastenotchef:session"); setRecoveryCode(""); setAppError(""); }
+    catch (error) { setAppError(error instanceof Error ? error.message : "Could not sign out."); }
+  }
+  async function enableNotifications() {
+    if (!("Notification" in window)) return;
+    const permission = await Notification.requestPermission(); setNotificationPrefs(current => ({ ...current, browserPermission: permission, webPushEnabled: permission === "granted" }));
+  }
+  if (restoring) return <div className="app-shell min-h-screen p-10" role="status">Opening your kitchen…</div>;
+  if (!session) return <div className="app-shell min-h-screen px-4 py-8 sm:px-6 lg:px-8">{appError && <p role="alert" className="mx-auto max-w-6xl text-red-700">{appError}</p>}<Login onGuestLogin={guestLogin} onAuthenticated={result => { setSessionToken(result.token); localStorage.removeItem("wastenotchef:session"); setSession(result.user); setRecoveryCode(result.recoveryCode ?? ""); setAppError(""); navigate("/fridge"); }} /></div>;
+  const pending = pantry.busy || busy;
+  return <div className="app-shell min-h-screen text-ink">
+    {recoveryCode && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-5"><section role="dialog" aria-modal="true" aria-labelledby="recovery-heading" className="w-full max-w-xl rounded-3xl bg-white p-7"><h2 id="recovery-heading" className="font-display text-3xl">Save your recovery code</h2><p className="my-4 text-sm leading-7">Keep this code in a password manager. It is shown only once and lets you reset your password. We don’t send password-reset emails.</p><code className="block break-all rounded-xl bg-oat p-4">{recoveryCode}</code><button autoFocus className="primary-action mt-5" onClick={() => setRecoveryCode("")}>I’ve saved my code</button></section></div>}
+    {showOnboarding && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-5"><section role="dialog" aria-modal="true" aria-labelledby="demo-heading" className="max-w-xl rounded-3xl bg-white p-7"><h2 id="demo-heading" className="font-display text-3xl">Try a sample kitchen?</h2><p className="my-4">Explore a demo pantry, or start with your own ingredients.</p><div className="flex gap-4"><button className="primary-action" onClick={async () => { try { await updateItems(() => demoItems); setRecipes(demoRecipes); setDayPlans(demoPlan); localStorage.setItem("wastenotchef:onboarded","true"); setShowOnboarding(false); } catch {} }}>Load demo fridge</button><button autoFocus onClick={() => { localStorage.setItem("wastenotchef:onboarded","true"); setShowOnboarding(false); }}>Use my pantry</button></div></section></div>}
+    <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8"><header className="kitchen-nav sticky top-4 z-40 px-4 py-3 backdrop-blur"><div className="flex flex-wrap items-center justify-between gap-3"><Link to="/" className="font-display text-2xl"><span className="brand-leaf" aria-hidden="true">✳</span> WasteNotChef</Link><div className="flex flex-wrap items-center gap-3"><nav className="flex flex-wrap gap-2">{[["/","Home"],["/fridge","Fridge"],["/recipes","Recipes"],["/planner","Planner"],["/dashboard","Dashboard"],["/settings","Settings"]].map(([href,label]) => <Link key={href} to={href} aria-current={location.pathname === href ? "page" : undefined} className={`rounded-full px-4 py-2 text-sm font-semibold ${location.pathname === href ? "bg-ink text-white" : "text-slate-600"}`}>{label}</Link>)}</nav><span className="rounded-full bg-mist px-3 py-2 text-xs">{session.name}</span><button disabled={pending || recipesBusy} onClick={() => void logout()} className="text-xs">Log out</button>{session.mode === "guest" && <button disabled={pending} onClick={() => { setSession(null); localStorage.removeItem("wastenotchef:session"); }} className="text-xs font-semibold">Sign in / Join</button>}</div></div></header>
+      <main className="py-8">{(appError || pantry.error) && <div role="alert" className="mb-5 rounded-2xl bg-amber-50 p-4 text-sm text-amber-900">{appError || pantry.error}{pantry.error && session.mode === "account" && <button className="ml-3 underline" onClick={() => void pantry.refresh()}>Refresh pantry</button>}</div>}
+        <Routes><Route path="/" element={<Landing onDemoUpload={handleFile} busy={pending} />} />
+          <Route path="/fridge" element={<><div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-xs"><p role="status">{pantry.status}</p>{session.mode === "account" && <div className="flex gap-4"><button disabled={pending} onClick={() => void pantry.refresh()}>Refresh pantry</button>{readGuestPantry().length > 0 && <button disabled={pending} onClick={() => void addItems(readGuestPantry()).catch(() => {})}>Import pantry from this device</button>}</div>}</div><fieldset disabled={pending} className="min-w-0"><Fridge items={items} synced={session.mode === "account"} onItemsAdded={addItems} onRemoveItem={id => updateItems(current => current.filter(item => item.id !== id))} onAddItem={item => addItems([item])} onUpdateItem={(id, changes) => updateItems(current => current.map(item => item.id === id ? { ...item, ...changes } : item))} onGenerateRecipes={generateRecipes} generatingRecipes={recipesBusy} /></fieldset></>} />
+          <Route path="/recipes" element={<Recipes recipes={recipes} onAddToPlan={recipe => { setDayPlans(current => [...current, { scheduledDate: new Date(Date.now()+current.length*86400000).toISOString().slice(0,10), recipe, itemsConsumed: recipe.ingredients.map(item => item.name), priority: recipe.score ?? 70, reasoning: "Added from your recipes.", leftovers: [], wasteScore: 88 }]); navigate("/planner"); }} />} />
+          <Route path="/planner" element={<><button className="primary-action mb-5" disabled={pending || !items.length} onClick={() => void planCurrentPantry()}>{busy ? "Planning…" : "Plan from my pantry"}</button><Planner dayPlans={dayPlans} onReorder={setDayPlans} /></>} />
+          <Route path="/dashboard" element={<Dashboard timeseries={timeseries} />} />
+          <Route path="/settings" element={<Settings session={session} notificationPrefs={notificationPrefs} onUpdateNotificationPrefs={changes => setNotificationPrefs(current => ({ ...current, ...changes }))} onEnableBrowserNotifications={enableNotifications} />} />
+        </Routes>
+      </main></div><ChatWidget currentPage={location.pathname} pantryItems={items} />
+  </div>;
 }
-
 export default App;

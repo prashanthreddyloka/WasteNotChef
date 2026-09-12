@@ -43,6 +43,7 @@ model PantryItem {
 
 model WeekPlan {
   id           String   @id @default(cuid())
+  userId       String?
   startDate    DateTime
   endDate      DateTime
   wasteScore   Float
@@ -50,6 +51,36 @@ model WeekPlan {
   metadataJson String
   createdAt    DateTime @default(now())
   dayPlans     DayPlan[]
+}
+
+model User {
+  id               String @id @default(cuid())
+  email            String @unique
+  name             String
+  passwordHash     String
+  recoveryHash     String
+  inventoryVersion Int @default(0)
+  createdAt        DateTime @default(now())
+  sessions         AuthSession[]
+  inventory        InventoryEntry[]
+}
+
+model AuthSession {
+  tokenHash String @id
+  userId String
+  expiresAt DateTime
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model InventoryEntry {
+  id String @id @default(cuid())
+  userId String
+  clientId String
+  itemJson String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([userId, clientId])
 }
 
 model DayPlan {

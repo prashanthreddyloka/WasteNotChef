@@ -38,8 +38,9 @@ async function handlePlanWeek(req: Request, res: Response, next: NextFunction) {
     }));
 
     const result = planWeek(items, recipes, preferences, new Date());
-    const saved = await prisma.weekPlan.create({
+    const saved = res.locals.user ? await prisma.weekPlan.create({
       data: {
+        userId: res.locals.user.id,
         startDate: new Date(result.dayPlans[0]?.scheduledDate ?? new Date()),
         endDate: new Date(result.dayPlans.at(-1)?.scheduledDate ?? new Date()),
         wasteScore: result.wasteProjection.weeklyWasteScore,
@@ -58,13 +59,13 @@ async function handlePlanWeek(req: Request, res: Response, next: NextFunction) {
           }))
         }
       }
-    });
+    }) : null;
 
     return res.json({
       weekPlan: result.dayPlans,
       wasteProjection: result.wasteProjection,
       reasoning: result.reasoning,
-      metadata: { ...result.metadata, savedPlanId: saved.id }
+      metadata: { ...result.metadata, savedPlanId: saved?.id }
     });
   } catch (error) {
     return next(error);

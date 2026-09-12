@@ -75,13 +75,13 @@ export function Settings({
           <h2 className="font-display text-2xl text-ink">Profile and privacy</h2>
           <div className="mt-4 rounded-2xl bg-mist p-4 text-sm text-slate-600">
             Signed in as <span className="font-semibold text-ink">{session.name}</span> via{" "}
-            <span className="font-semibold text-ink">{session.mode === "guest" ? "guest mode" : "local profile"}</span>.
+            <span className="font-semibold text-ink">{session.mode === "guest" ? "guest mode" : "your account"}</span>.
           </div>
           <p className="mt-4 text-sm leading-7 text-slate-600">
             Analytics are console-only in this demo build. No external analytics provider is wired by default, and export is available as local JSON plus a printable plan flow.
           </p>
           <div className="mt-4 rounded-2xl bg-mist p-4 text-sm text-slate-600">
-            Integrations placeholder: grocery sync, shared household calendars, and smart device inventory feeds.
+            {session.mode === "account" ? "Your inventory syncs across devices when you sign in. Use Refresh pantry to load changes made elsewhere." : "Guest inventory stays on this device. Sign in to import it into a personal account."}
           </div>
         </section>
       </div>

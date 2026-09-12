@@ -34,15 +34,15 @@ describe("receipt upload API", () => {
     mocks.transaction.mockResolvedValue([]);
     mocks.find.mockResolvedValue([]);
   });
-  it("saves recognized food in a transaction and returns existing rows on retries", async () => {
+  it("returns recognized food without writing to shared inventory", async () => {
     const item = { id: "receipt-abc-0", name: "milk", quantity: "2", confidence: 0.85, inferredExpiry: null, detectedExpiry: null };
     mocks.analyze.mockResolvedValue({ items: [item], skippedLines: 3 });
     mocks.find.mockResolvedValue([item]);
     const response = await send();
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ items: [{ ...item, detectionSource: "ocr", expirySource: "none" }], skippedLines: 3 });
-    expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({ where: { id: item.id }, update: {}, create: expect.objectContaining({ source: "receipt" }) }));
-    expect(mocks.transaction).toHaveBeenCalledOnce();
+    expect(await response.json()).toEqual({ items: [item], skippedLines: 3 });
+    expect(mocks.upsert).not.toHaveBeenCalled();
+    expect(mocks.transaction).not.toHaveBeenCalled();
   });
   it("rejects missing or unsupported uploads before OCR", async () => {
     expect((await send("text/plain")).status).toBe(400);

@@ -21,13 +21,7 @@ receiptRouter.post("/", (req, res, next) => {
   if (!req.file) return res.status(400).json({ error: "Choose a JPEG, PNG, or WebP receipt image under 10 MB." });
   try {
     const result = await analyzeReceipt(req.file.path, await prisma.ingredientRule.findMany());
-    // Stable IDs make retrying the same image safe; save the whole scan atomically.
-    await prisma.$transaction(result.items.map(item => prisma.pantryItem.upsert({
-      where: { id: item.id }, update: {},
-      create: { ...item, inferredExpiry: item.inferredExpiry ? new Date(item.inferredExpiry) : null, detectedExpiry: null, source: "receipt" }
-    })));
-    const saved = await prisma.pantryItem.findMany({ where: { id: { in: result.items.map(item => item.id) } } });
-    return res.json({ ...result, items: saved.map(item => ({ ...item, detectionSource: "ocr", expirySource: item.detectedExpiry ? "ocr" : item.inferredExpiry ? "rule" : "none", detectedExpiry: item.detectedExpiry?.toISOString().slice(0, 10) ?? null, inferredExpiry: item.inferredExpiry?.toISOString().slice(0, 10) ?? null })) });
+    return res.json(result);
   } catch (error) {
     return next(error);
   } finally {

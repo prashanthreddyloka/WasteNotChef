@@ -29,7 +29,7 @@ I built WasteNotChef to solve a very common problem: people already have food at
 - Express + TypeScript backend with Prisma + SQLite
 - Deterministic fridge analysis pipeline with explainable OCR/date handling
 - Quest-style planner UX with drag and drop day cards
-- Manual pantry editing, refresh-safe persistence, and guest/local session flow
+- Editable pantry items with Remove/Undo, local guest storage, and account inventory sync
 - Notification preferences UI with browser permission support
 - Deploy-ready setup for Vercel + Render
 
@@ -44,12 +44,6 @@ I built WasteNotChef to solve a very common problem: people already have food at
 | Weekly planner | Save recipes for later and organize them in a quest-style planner |
 | Cook-now recipe view | Open steps and a related YouTube search directly inside the recipe card |
 | AI chat | Ask Gemini or OpenAI-powered questions about recipes, substitutions, storage, or planning |
-
-## Built With AI
-- Used Codex to design and implement the full-stack product workflow
-- Iterated on fridge detection, recipe ranking, planner logic, persistence, and deployment
-- Added provider-based AI chat with Gemini or OpenAI support through a backend proxy
-- Refined the UX through multiple feedback-driven changes across recipes, planner, login, and settings
 
 ## Tech Stack
 - Client: React, Vite, TypeScript, Tailwind CSS, Framer Motion
@@ -76,7 +70,9 @@ flowchart LR
     A --> CH["/api/chat"]
 
     UP --> OCR["OCR + Visual Heuristics"]
-    OCR --> DB[(Prisma + SQLite)]
+    OCR --> F
+    F --> INV["Authenticated inventory sync"]
+    INV --> DB[(Prisma + SQLite)]
     RR --> DB
     PW --> DB
     WS --> DB
@@ -145,8 +141,8 @@ Recommended:
   - `VITE_API_BASE_URL=https://your-render-url.onrender.com/api`
 
 ## Current UX Flow
-1. Sign in locally or continue as guest
-2. Upload a fridge image
+1. Create an account, sign in, or continue as guest
+2. Upload a fridge image or grocery receipt
 3. Review detected items and manually add anything missing
 4. Click `Get Recipes` to generate fresh recommendations from the latest fridge items
 5. Use `Show recipe` to cook now or `Add to plan` to save it for later
@@ -172,8 +168,17 @@ Recommended:
 
 ## Receipt scanning
 - Open **Fridge → Upload receipt** and choose a JPEG, PNG, or WebP photo/screenshot (maximum 10 MB).
-- `POST /api/upload-receipt` accepts multipart field `image`, reads it with Tesseract, and adds recognized priced food lines to pantry storage atomically. Existing inventory is retained; quantities are shown in the list.
-- Household/pet products, discounts, totals, and payment lines are excluded. The parser uses a food vocabulary and common abbreviations; unknown products or layouts without prices on the same line are skipped. Review the resulting inventory for OCR mistakes.
+- `POST /api/upload-receipt` accepts multipart field `image` and returns recognized food items. The client merges them with existing inventory and saves through the authenticated inventory endpoint or guest storage.
+- Household/pet products, discounts, totals, and payment lines are excluded. The parser handles common store abbreviations, separate price lines, and conservative OCR spelling corrections. Image rotation, contrast enhancement, and sharpening help with mildly blurry photos; unreadable text can still be missed. Review names, quantities, and dates after scanning.
 - Receipt dates are never treated as expiry dates. Where available, shelf-life rules estimate expiry from the upload date; check the packaging.
 - The same image bytes produce stable item IDs, so retries do not create duplicates. A different photograph of the same receipt is considered a new receipt.
 - No matches leaves inventory unchanged. OCR/API failures show an error. Temporary receipt images are deleted after processing, and the browser retains its inventory across refreshes.
+
+## Accounts and inventory sync
+- Register with an email address and a password of at least 12 characters. Save the recovery code shown once after registration. Password recovery uses that code, rotates it, and signs out existing sessions; reset emails are not sent.
+- Passwords use salted scrypt hashes. Random bearer sessions are hashed in the database, expire after 30 days, and are revoked on sign-out. The browser keeps its token in session storage; use HTTPS in production.
+- Signed-in inventories are stored per user. Sign in on another device to load the same pantry. Saves use version checks; if another device changed the inventory, refresh and reapply the edit. Inventory refreshes on window focus when an editor is not active, or with **Refresh pantry**.
+- Guest inventories remain on the device. After signing in, choose **Import pantry from this device** to copy existing items to the account. Old shared backend records are not assigned to any account or exposed through waste history.
+- Apply the additive schema changes with `npx prisma db push` and regenerate the Prisma client. Render's documented start command already applies them. Keep SQLite on a persistent disk and retain backups; never reset the database during deployment.
+- Account creation and scans have request limits. For multiple server instances, use a shared rate-limit store and a database suited to concurrent writes.
+- Run `npx vitest run test/accounts.test.ts test/receipt.test.ts test/receipt-route.test.ts` for account isolation, recovery, inventory conflicts, and receipt coverage. Set `REAL_OCR_TEST=1` and run `npx vitest run test/receipt-image.test.ts` for a real blurred-image OCR check; its first run downloads the English language model.

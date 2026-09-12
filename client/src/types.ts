@@ -44,7 +44,8 @@ export type PlannerPreferences = {
 };
 
 export type SessionUser = {
-  mode: "guest" | "local";
+  mode: "guest" | "account";
+  id?: string;
   name: string;
   email?: string;
 };
