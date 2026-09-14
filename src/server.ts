@@ -12,6 +12,7 @@ import { inventoryRouter } from "./routes/inventory";
 import { identifySession } from "./services/auth";
 import { ZodError } from "zod";
 import { rateLimit } from "express-rate-limit";
+import { MulterError } from "multer";
 
 dotenv.config();
 
@@ -57,7 +58,7 @@ export function createServer() {
   app.use("/api/upload-photo", uploadRouter);
   app.use("/api/upload-receipt", receiptRouter);
   app.use("/api/recipes", recipesRouter);
-  app.use("/api/chat", chatRouter);
+  app.use("/api/chat", rateLimit({ windowMs: 60000, limit: 15, standardHeaders: "draft-7", legacyHeaders: false, message: { error: "Please wait a minute before sending more messages." } }), chatRouter);
   app.use("/api/plan", planRouter);
   app.use("/api/waste", wasteRouter);
   app.use("/api/plan-week", planRouter);
@@ -67,6 +68,7 @@ export function createServer() {
   });
   app.use((error: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     if (error instanceof ZodError) { res.status(400).json({ error: error.issues[0]?.message ?? "Invalid input." }); return; }
+    if (error instanceof MulterError) { res.status(400).json({ error: "Choose one JPEG, PNG, or WebP image under 10 MB." }); return; }
     console.error(error);
     res.status(500).json({ error: "We could not complete this request. Please try again." });
   });

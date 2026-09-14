@@ -1,5 +1,9 @@
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
+import sharp from "sharp";
+import { z } from "zod";
+import { withDefaultExpiry } from "../../client/src/lib/shelfLife";
 import { fuzzyMatchToken, runOcr, type OcrWord } from "./ocr";
 import { extractDates, formatDate, inferExpiryDate } from "../utils/dates";
 
@@ -195,22 +199,20 @@ function buildOcrItems(
 }
 
 async function callGeminiForIngredients(imagePath: string): Promise<GeminiCandidate[]> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return [];
-  }
-
   if (process.env.MOCK_GEMINI_INGREDIENTS) {
     const parsed = JSON.parse(process.env.MOCK_GEMINI_INGREDIENTS) as { items?: GeminiCandidate[] };
     return Array.isArray(parsed.items) ? parsed.items : [];
   }
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return [];
 
-  const buffer = await fs.promises.readFile(imagePath);
-  const mimeType = path.extname(imagePath).toLowerCase() === ".png" ? "image/png" : "image/jpeg";
+  const buffer = await sharp(imagePath, { limitInputPixels: 24000000 }).rotate().resize({ width: 1800, height: 1800, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
+  const mimeType = "image/jpeg";
   const model = process.env.GEMINI_MODEL || process.env.AI_MODEL || "gemini-2.5-flash";
 
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
     method: "POST",
+    signal: AbortSignal.timeout(30000),
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       contents: [
@@ -230,8 +232,7 @@ async function callGeminiForIngredients(imagePath: string): Promise<GeminiCandid
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Gemini fridge analysis failed: ${errorText}`);
+    throw new Error(`Image recognition returned HTTP ${response.status}.`);
   }
 
   const data = (await response.json()) as {
@@ -243,8 +244,8 @@ async function callGeminiForIngredients(imagePath: string): Promise<GeminiCandid
     return [];
   }
 
-  const parsed = JSON.parse(sanitizeJsonText(text)) as { items?: GeminiCandidate[] };
-  return Array.isArray(parsed.items) ? parsed.items : [];
+  const candidate = z.object({ name: z.string().trim().min(1).max(80), confidence: z.number().min(0).max(1), quantityEstimate: z.string().max(60).optional(), readableDate: z.string().max(80).optional(), visiblePackaging: z.string().max(300).optional(), freshnessClue: z.string().max(300).optional(), notes: z.string().max(500).optional() });
+  return z.object({ items: z.array(candidate).max(18) }).parse(JSON.parse(sanitizeJsonText(text))).items;
 }
 
 function buildGeminiItems(
@@ -312,17 +313,16 @@ export async function analyzeFridgePhoto(
   if (!fs.existsSync(absolutePath)) {
     throw new Error(`Image not found: ${absolutePath}`);
   }
+  const imageId = createHash("sha256").update(await fs.promises.readFile(absolutePath)).digest("hex");
+  const finalize = (items: DetectedItem[]) => items.map((item, index) => withDefaultExpiry({ ...item, id: `photo-${imageId}-${index}`, inferredExpiry: null }, referenceDate));
 
-  const ocr = await runOcr(absolutePath);
+  const ocr = await runOcr(absolutePath).catch(() => ({ text: "", words: [], engine: "stub" as const }));
   const tokens: TokenWithOptionalBbox[] =
     ocr.words.length > 0
       ? ocr.words
       : ocr.text.split(/\s+/).filter(Boolean).map((word) => ({ text: word, confidence: 0.65 }));
 
-  const expiryWords = extractDates(ocr.text).map((date, index) => ({
-    date: formatDate(date) as string,
-    bbox: tokens[index]?.bbox
-  }));
+  const expiryWords = tokens.flatMap(token => extractDates(token.text).map(date => ({ date: formatDate(date) as string, bbox: token.bbox })));
 
   const ocrItems = buildOcrItems(tokens, ingredientRules, expiryWords, referenceDate);
 
@@ -341,8 +341,8 @@ export async function analyzeFridgePhoto(
         }
 
         merged.set(key, {
-          ...existing,
           ...item,
+          ...existing,
           confidence: Math.max(existing.confidence, item.confidence),
           detectionSource:
             existing.detectionSource !== item.detectionSource && existing.detectionSource && item.detectionSource
@@ -355,11 +355,11 @@ export async function analyzeFridgePhoto(
         });
       }
 
-      return Array.from(merged.values()).sort((left, right) => right.confidence - left.confidence);
+      return finalize(Array.from(merged.values())).sort((left, right) => right.confidence - left.confidence);
     }
   } catch (error) {
-    console.warn("Gemini fridge analysis unavailable, falling back to OCR-only detection.", error);
+    console.warn("Image recognition unavailable; using readable labels for this scan.");
   }
 
-  return ocrItems;
+  return finalize(ocrItems);
 }

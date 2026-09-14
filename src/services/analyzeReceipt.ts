@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { FOOD_KEYWORDS, type DetectedItem, type IngredientRuleLike } from "./analyzeFridgePhoto";
 import { fuzzyMatchToken, runOcr } from "./ocr";
 import sharp from "sharp";
+import { withDefaultExpiry } from "../../client/src/lib/shelfLife";
 import { formatDate, inferExpiryDate } from "../utils/dates";
 
 const aliases: Record<string, string> = {
@@ -76,7 +77,7 @@ export function parseReceipt(text: string, rules: IngredientRuleLike[], receiptI
       notes: `${fuzzy ? "Approximate OCR match; review the name. " : ""}${rule ? "Added from receipt. Expiry estimated from upload date; check packaging." : "Added from receipt. Check packaging for expiry."}`
     });
   }
-  return { items, skippedLines };
+  return { items: items.map(item => withDefaultExpiry({ ...item, inferredExpiry: null }, referenceDate)), skippedLines };
 }
 
 export async function analyzeReceipt(imagePath: string, rules: IngredientRuleLike[]) {

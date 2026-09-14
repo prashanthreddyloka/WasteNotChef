@@ -15,8 +15,8 @@ const bodySchema = z.object({
     })
   ),
   preferences: z.object({
-    mealsPerDay: z.number().min(1).max(3),
-    skipDays: z.array(z.number().min(0).max(6)),
+    mealsPerDay: z.number().int().min(1).max(3),
+    skipDays: z.array(z.number().int().min(0).max(6)).max(7),
     preferCuisineTags: z.array(z.string()),
     maxLeftovers: z.number().min(0).max(10)
   })

@@ -19,7 +19,7 @@ export function Planner({ dayPlans, onReorder }: PlannerProps) {
     const next = [...dayPlans];
     const [moved] = next.splice(dragIndex, 1);
     next.splice(index, 0, moved);
-    onReorder(next);
+    onReorder(next.map((plan, position) => ({ ...plan, scheduledDate: dayPlans[position].scheduledDate })));
     setDragIndex(null);
   }
 

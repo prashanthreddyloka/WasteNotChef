@@ -45,15 +45,16 @@ export async function uploadReceipt(file: File): Promise<{ items: PantryItem[]; 
   return response.json();
 }
 
-export async function uploadPhoto(file: File): Promise<PantryItem[]> {
+export async function uploadPhoto(file: File): Promise<{ items: PantryItem[]; recognition: "vision" | "labels" }> {
   const formData = new FormData();
   formData.append("image", file);
   const response = await apiFetch(`${API_BASE}/upload-photo`, { method: "POST", body: formData });
   if (!response.ok) {
-    throw new Error("Upload failed");
+    const data = await response.json().catch(() => null);
+    throw new Error(data?.error ?? "Photo scan failed. Please try again.");
   }
   const data = await response.json();
-  return data.items;
+  return data;
 }
 
 export async function fetchRecipes(items: PantryItem[]): Promise<Recipe[]> {

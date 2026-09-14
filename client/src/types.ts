@@ -4,6 +4,9 @@ export type PantryItem = {
   quantity?: string;
   detectedExpiry?: string | null;
   inferredExpiry?: string | null;
+  addedAt?: string;
+  expiryBasis?: string;
+  expiryKind?: "estimate" | "review";
   confidence: number;
   detectionSource?: "visual" | "ocr" | "gemini" | "merged" | "manual";
   expirySource?: "ocr" | "rule" | "manual" | "none";

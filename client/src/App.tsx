@@ -3,7 +3,6 @@ import { Link, Route, Routes, useLocation, useNavigate } from "react-router-dom"
 import { demoItems, demoPlan, demoRecipes } from "./data/demo";
 import { ApiError, currentAccount, endSession, fetchRecipes, fetchWasteSeries, fetchWeekPlan, getSessionToken, setSessionToken, uploadPhoto } from "./lib/api";
 import { readGuestPantry, usePantry } from "./lib/usePantry";
-import { detectVisibleItems, mergeDetectedItems } from "./lib/visualHeuristics";
 import { ChatWidget } from "./components/ChatWidget";
 import { Dashboard } from "./pages/Dashboard";
 import { Fridge } from "./pages/Fridge";
@@ -33,6 +32,7 @@ function App() {
   const [viewOwner, setViewOwner] = useState<string | null>(null);
   const viewKey = session?.mode === "account" ? session.id ?? null : session?.mode ?? null;
   const items = pantry.items;
+  useEffect(() => { if (location.hash === "#scan") document.getElementById("scan")?.scrollIntoView({ behavior: "smooth" }); }, [location.pathname, location.hash, restoring, session]);
   useEffect(() => {
     let cancelled = false;
     async function restore() {
@@ -87,11 +87,12 @@ function App() {
   async function handleFile(file: File) {
     setBusy(true); setAppError(""); const current = epoch.current;
     try {
-      const [uploaded, visual] = await Promise.all([uploadPhoto(file), detectVisibleItems(file).catch(() => [])]);
+      const uploaded = await uploadPhoto(file);
       if (current !== epoch.current) return;
-      const added = mergeDetectedItems(uploaded, visual);
+      const added = uploaded.items;
       if (!added.length) { setAppError("No confident ingredients found. Try a clearer photo or add items manually."); return; }
       await addItems(added); navigate("/fridge");
+      if (uploaded.recognition === "labels") setAppError("This scan used readable labels. Unlabeled ingredients may be missing; add them manually and review the estimated dates.");
     } catch (error) { setAppError(error instanceof Error ? error.message : "Could not analyze this photo."); }
     finally { setBusy(false); }
   }

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db/prismaClient";
+import { canonicalFoodName } from "../../client/src/lib/shelfLife";
 
 const bodySchema = z.object({
   items: z.array(z.object({ name: z.string() }))
@@ -55,7 +56,7 @@ export const recipesRouter = Router();
 recipesRouter.post("/from-items", async (req, res, next) => {
   try {
     const { items } = bodySchema.parse(req.body);
-    const pantry = new Set(items.map((item) => item.name.toLowerCase()));
+    const pantry = new Set(items.map((item) => canonicalFoodName(item.name)));
     const recipes = await prisma.recipe.findMany();
 
     const mapped = recipes

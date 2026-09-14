@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { PantryItem } from "../types";
 import { ReceiptUpload } from "../components/ReceiptUpload";
 import { PantryCard } from "../components/PantryCard";
+import { Link } from "react-router-dom";
 
 type FridgeProps = { items: PantryItem[]; synced?: boolean; onItemsAdded: (items: PantryItem[]) => Promise<void> | void; onUpdateItem: (id: string, updates: Partial<PantryItem>) => Promise<void> | void; onRemoveItem: (id: string) => Promise<void> | void; onAddItem: (item: PantryItem) => Promise<void> | void; onGenerateRecipes: () => Promise<void> | void; generatingRecipes?: boolean };
 
@@ -16,7 +17,8 @@ export function Fridge({ items, onUpdateItem, onRemoveItem, onAddItem, onGenerat
   return (
     <div className="pantry-page space-y-7">
       <div className="pantry-heading"><div><p className="eyebrow">YOUR EVERYDAY INGREDIENTS</p><h1>A little pantry.<br /><em>A lot of possibility.</em></h1><p>Review what you have. Make something you love.</p></div><div className="pantry-summary"><strong>{items.length.toString().padStart(2, "0")}</strong><span>ingredients in your kitchen</span><button type="button" onClick={() => void onGenerateRecipes()} disabled={generatingRecipes || !items.length} className="primary-action">{generatingRecipes ? "Finding inspiration…" : "Find recipes →"}</button></div></div>
-      <div className="pantry-tools"><ReceiptUpload onItemsAdded={onItemsAdded} /><section className="manual-entry"><p className="eyebrow">JUST ONE MORE THING</p><h2>Add it yourself.</h2><p>Something missing? Make a little room for it here.</p>
+      <Link to="/#scan" className="secondary-action inline-block">Scan a fridge photo →</Link>
+      <div className="pantry-tools"><ReceiptUpload onItemsAdded={onItemsAdded} /><section className="manual-entry"><p className="eyebrow">JUST ONE MORE THING</p><h2>Add it yourself.</h2><p>Leave expiry blank for an estimate based on the food. You can change it anytime.</p>
         <form onSubmit={async event => {
           event.preventDefault(); if (!draftName.trim()) return;
           const selectedExpiry = String(new FormData(event.currentTarget).get("expiry") ?? "");

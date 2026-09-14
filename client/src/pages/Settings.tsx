@@ -22,17 +22,19 @@ export function Settings({
 
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="rounded-[1.75rem] border border-white/70 bg-white/85 p-6 shadow-float">
-          <h2 className="font-display text-2xl text-ink">Reminder preferences</h2>
+          <h2 className="font-display text-2xl text-ink">Reminder availability</h2>
+          <p className="mt-3 text-sm text-slate-600">Automatic browser and email reminders are not connected yet. Review dates in your pantry; granting browser permission alone does not schedule notifications.</p>
           <div className="mt-4 space-y-3 text-sm text-slate-600">
             <div className="rounded-2xl bg-mist p-4">
               <div className="flex items-center justify-between gap-4">
                 <span>Browser notifications</span>
                 <button
                   type="button"
+                  disabled
                   onClick={() => void onEnableBrowserNotifications()}
                   className="rounded-full bg-ink px-4 py-2 text-xs font-semibold text-white"
                 >
-                  {notificationPrefs.browserPermission === "granted" ? "Enabled" : "Enable"}
+                  Not available yet
                 </button>
               </div>
               <div className="mt-2 text-xs text-slate-500">
@@ -43,12 +45,15 @@ export function Settings({
               <span>Email reminders</span>
               <input
                 type="checkbox"
-                checked={notificationPrefs.emailEnabled}
+                disabled
+                checked={false}
                 onChange={(event) => onUpdateNotificationPrefs({ emailEnabled: event.target.checked })}
               />
             </label>
             <input
               type="email"
+              disabled
+              aria-label="Reminder email (not available yet)"
               value={notificationPrefs.email ?? ""}
               onChange={(event) => onUpdateNotificationPrefs({ email: event.target.value })}
               placeholder="Reminder email"
@@ -57,6 +62,7 @@ export function Settings({
             <label className="block rounded-2xl bg-white p-4">
               <span className="text-sm font-medium text-slate-700">Remind me before expiry</span>
               <select
+                disabled
                 value={notificationPrefs.reminderDays}
                 onChange={(event) => onUpdateNotificationPrefs({ reminderDays: Number(event.target.value) })}
                 className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-teal-400"
@@ -78,7 +84,7 @@ export function Settings({
             <span className="font-semibold text-ink">{session.mode === "guest" ? "guest mode" : "your account"}</span>.
           </div>
           <p className="mt-4 text-sm leading-7 text-slate-600">
-            Analytics are console-only in this demo build. No external analytics provider is wired by default, and export is available as local JSON plus a printable plan flow.
+            Your pantry is separate from other accounts. Photo recognition may send an uploaded image to the configured image-recognition provider. Temporary server uploads are removed after processing. Plans can be exported from the Planner.
           </p>
           <div className="mt-4 rounded-2xl bg-mist p-4 text-sm text-slate-600">
             {session.mode === "account" ? "Your inventory syncs across devices when you sign in. Use Refresh pantry to load changes made elsewhere." : "Guest inventory stays on this device. Sign in to import it into a personal account."}

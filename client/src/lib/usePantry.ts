@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PantryItem, SessionUser } from "../types";
 import { loadInventory, saveInventory } from "./api";
+import { withDefaultExpiry } from "./shelfLife";
 
 const guestKey = "wastenotchef:items";
 export function readGuestPantry(): PantryItem[] {
@@ -35,7 +36,7 @@ export function usePantry(session: SessionUser | null) {
   useEffect(() => {
     generation.current += 1; activeKey.current = key; lock.current = false; version.current = null; entries.current = []; setItems([]); setOwner(key); setError(""); setBusy(false);
     if (session?.mode === "account") void refresh();
-    else if (session?.mode === "guest") { entries.current = readGuestPantry(); setItems(entries.current); setStatus("Saved on this device · Guest mode"); }
+    else if (session?.mode === "guest") { entries.current = readGuestPantry().map(item => withDefaultExpiry(item)); setItems(entries.current); try { localStorage.setItem(guestKey, JSON.stringify(entries.current)); } catch { setError("Could not save on this device."); } setStatus("Saved on this device · Guest mode"); }
     return () => { generation.current += 1; };
   }, [key, refresh]);
 
@@ -50,7 +51,7 @@ export function usePantry(session: SessionUser | null) {
     if (activeKey.current !== key || !session) throw new Error("Your account changed. Please retry in the current account.");
     if (lock.current) throw new Error("Please wait for the current save to finish.");
     const current = generation.current;
-    const next = updater(entries.current);
+    const next = updater(entries.current).map(item => withDefaultExpiry(item));
     lock.current = true; setBusy(true); setError("");
     try {
       if (session?.mode === "account") {

@@ -92,5 +92,13 @@ describe("accounts and inventory isolation", () => {
     expect((await (await call("/waste-score?from=2026-09-01&to=2026-09-30")).json()).timeseries).toEqual([]);
     expect((await (await call("/waste-score?from=2026-09-01&to=2026-09-30", "GET", undefined, tokenB)).json()).timeseries).toEqual([]);
   });
+  it("persists default dates for missing inventory dates without extending them", async () => {
+    const response = await call("/inventory", "PUT", { version: 2, items: [{ id: "tomatoes", name: "tomatoes", confidence: 1, addedAt: "2026-09-12" }, { id: "eggs", name: "eggs", confidence: 1, addedAt: "2026-09-12" }] }, tokenB);
+    expect(response.status).toBe(200);
+    const saved = await response.json();
+    expect(saved.items.map((entry: { inferredExpiry: string }) => entry.inferredExpiry)).toEqual(["2026-09-14", "2026-10-03"]);
+    const loaded = await (await call("/inventory", "GET", undefined, tokenB)).json();
+    expect(loaded).toEqual(saved);
+  });
 });
 

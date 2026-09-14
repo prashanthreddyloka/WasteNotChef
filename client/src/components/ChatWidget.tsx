@@ -18,7 +18,7 @@ async function sendChat(messages: ChatMessage[], pantryItems: PantryItem[], curr
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      messages,
+      messages: messages.slice(-30).map(message => ({ ...message, content: message.content.slice(0, 6000) })),
       pantryItems: pantryItems.map((item) => item.name),
       currentPage
     })

@@ -52,4 +52,14 @@ describe("scheduler", () => {
 
     expect(calculateWasteScore(items, ["bread"], new Date("2026-03-25"))).toBeLessThan(100);
   });
+  it("does not schedule expired food or reuse an exhausted pantry", () => {
+    const result = planWeek([{ id: "1", name: "lettuce", detectedExpiry: "2026-03-20" }, { id: "2", name: "eggs", detectedExpiry: "2026-03-29" }], recipes, { mealsPerDay: 3, skipDays: [], preferCuisineTags: [], maxLeftovers: 2 }, new Date(2026, 2, 25, 12));
+    expect(result.dayPlans).toHaveLength(1);
+    expect(result.dayPlans[0].itemsConsumed).toEqual(["eggs"]);
+    expect(result.dayPlans[0].leftovers).toEqual([]);
+  });
+  it("respects meals per day and skipped days", () => {
+    const result = planWeek([{ id: "1", name: "lettuce", detectedExpiry: "2026-03-28" }, { id: "2", name: "eggs", detectedExpiry: "2026-03-29" }], recipes, { mealsPerDay: 2, skipDays: [0], preferCuisineTags: [], maxLeftovers: 2 }, new Date(2026, 2, 25, 12));
+    expect(result.dayPlans.map(day => day.scheduledDate)).toEqual(["2026-03-26", "2026-03-26"]);
+  });
 });

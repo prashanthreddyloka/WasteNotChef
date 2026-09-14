@@ -3,12 +3,12 @@ import { z } from "zod";
 
 const messageSchema = z.object({
   role: z.enum(["user", "assistant"]),
-  content: z.string().min(1)
+  content: z.string().min(1).max(6000)
 });
 
 const bodySchema = z.object({
-  messages: z.array(messageSchema).min(1),
-  pantryItems: z.array(z.string()).optional(),
+  messages: z.array(messageSchema).min(1).max(30),
+  pantryItems: z.array(z.string().max(80)).max(500).optional(),
   currentPage: z.string().optional()
 });
 
@@ -39,6 +39,7 @@ async function callGemini(systemPrompt: string, transcript: string) {
   const model = process.env.GEMINI_MODEL || process.env.AI_MODEL || "gemini-2.5-flash";
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
     method: "POST",
+    signal: AbortSignal.timeout(30000),
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       contents: [
@@ -51,8 +52,7 @@ async function callGemini(systemPrompt: string, transcript: string) {
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Gemini chat failed: ${errorText}`);
+    throw new Error(`Chat provider returned HTTP ${response.status}.`);
   }
 
   const data = (await response.json()) as {

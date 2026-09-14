@@ -9,13 +9,14 @@ export function Dashboard({ timeseries }: DashboardProps) {
     <div className="space-y-6">
       <div>
         <p className="text-sm font-semibold uppercase tracking-[0.3em] text-coral">Waste dashboard</p>
-        <h1 className="mt-2 font-display text-4xl text-ink">Waste score over time</h1>
+        <h1 className="mt-2 font-display text-4xl text-ink">Estimated pantry use over time</h1>
         <p className="mt-3 max-w-2xl text-slate-600">
-          Daily and weekly scores make it easier to spot when unused ingredients are stacking up before they become actual waste.
+          These planning scores estimate ingredient use, not measured food waste. Higher scores mean more pantry items included in your plans.
         </p>
       </div>
 
       <div className="rounded-[2rem] border border-white/70 bg-white/85 p-5 shadow-float">
+        {!timeseries.length && <p role="status" className="p-5 text-slate-600">No planning history yet. Choose “Plan from my pantry” in the Planner to get started.</p>}
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={timeseries}>
@@ -36,8 +37,8 @@ export function Dashboard({ timeseries }: DashboardProps) {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        {timeseries.slice(-4).map((point) => (
-          <article key={point.date} className="rounded-[1.75rem] border border-slate-200 bg-white/80 p-5">
+        {timeseries.slice(-4).map((point, index) => (
+          <article key={`${point.date}-${index}`} className="rounded-[1.75rem] border border-slate-200 bg-white/80 p-5">
             <div className="text-sm text-slate-500">{point.date}</div>
             <div className="mt-2 font-display text-3xl text-ink">{point.wasteScore}</div>
             <div className="mt-2 text-sm text-slate-600">{point.recipeTitle ?? "Plan snapshot"}</div>

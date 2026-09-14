@@ -11,12 +11,16 @@ export function CameraUpload({ onFileSelected, busy }: CameraUploadProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const cameraRef = useRef<HTMLInputElement | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [error, setError] = useState("");
+  const inFlight = useRef(false);
 
   async function handleFiles(fileList: FileList | null) {
     const file = fileList?.[0];
-    if (file) {
-      await onFileSelected(file);
-    }
+    if (!file || busy || inFlight.current) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 10 * 1024 * 1024) { setError("Choose a JPEG, PNG, or WebP photo under 10 MB."); return; }
+    inFlight.current = true; setError("");
+    try { await onFileSelected(file); } catch { setError("The scan failed. Please try again."); }
+    finally { inFlight.current = false; if (inputRef.current) inputRef.current.value = ""; if (cameraRef.current) cameraRef.current.value = ""; }
   }
 
   return (
@@ -69,7 +73,7 @@ export function CameraUpload({ onFileSelected, busy }: CameraUploadProps) {
       <input
         ref={cameraRef}
         type="file"
-        accept="image/*"
+        accept="image/jpeg,image/png,image/webp"
         capture="environment"
         className="hidden"
         onChange={(event) => void handleFiles(event.target.files)}
@@ -77,10 +81,11 @@ export function CameraUpload({ onFileSelected, busy }: CameraUploadProps) {
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
+        accept="image/jpeg,image/png,image/webp"
         className="hidden"
         onChange={(event) => void handleFiles(event.target.files)}
       />
+      <p role="status" className="mt-3 text-sm text-slate-600">{busy ? "Scanning your fridge…" : error || "JPEG, PNG, or WebP · Up to 10 MB. Review detected items and estimated dates after scanning."}</p>
     </motion.div>
   );
 }

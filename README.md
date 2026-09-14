@@ -12,7 +12,7 @@ Live app: [https://waste-not-chef.vercel.app](https://waste-not-chef.vercel.app)
 
 ## What It Does
 - Upload a fridge photo with a camera-first flow
-- Detect visible ingredients using OCR plus lightweight visual heuristics
+- Detect visible ingredients using image recognition when configured, with OCR label reading as fallback
 - Let users manually correct or add missing pantry items
 - Generate recipe suggestions from the latest fridge state
 - Filter recipes by `All`, `Country`, and `Continent`
@@ -27,7 +27,7 @@ I built WasteNotChef to solve a very common problem: people already have food at
 ## Product Highlights
 - React + Vite + TypeScript frontend with Tailwind and Framer Motion
 - Express + TypeScript backend with Prisma + SQLite
-- Deterministic fridge analysis pipeline with explainable OCR/date handling
+- Fridge photo recognition with editable results and clearly labeled default expiry estimates
 - Quest-style planner UX with drag and drop day cards
 - Editable pantry items with Remove/Undo, local guest storage, and account inventory sync
 - Notification preferences UI with browser permission support
@@ -155,12 +155,12 @@ Recommended:
 - Recipe generation always uses the latest fridge state when `Get Recipes` is clicked
 
 ## Limitations
-- Fridge detection is still a hybrid OCR plus heuristic pipeline, not a true vision model
+- Fridge photos use Gemini image recognition when a backend key is configured; if unavailable, label reading is used and the app says so. Unlabeled or obscured items can still be missed.
 - Expiry dates are usually inferred unless readable packaging text is visible
 - SQLite is fine for demos and lightweight usage, but Postgres would be better for scale
 
 ## Next Improvements
-- Replace heuristic fridge recognition with a real vision model
+- Improve recognition coverage with more real-world fridge-photo fixtures
 - Add shopping list generation from missing recipe ingredients
 - Add shared household mode and collaborative planning
 - Add saved recipes and scan history
@@ -182,3 +182,10 @@ Recommended:
 - Apply the additive schema changes with `npx prisma db push` and regenerate the Prisma client. Render's documented start command already applies them. Keep SQLite on a persistent disk and retain backups; never reset the database during deployment.
 - Account creation and scans have request limits. For multiple server instances, use a shared rate-limit store and a database suited to concurrent writes.
 - Run `npx vitest run test/accounts.test.ts test/receipt.test.ts test/receipt-route.test.ts` for account isolation, recovery, inventory conflicts, and receipt coverage. Set `REAL_OCR_TEST=1` and run `npx vitest run test/receipt-image.test.ts` for a real blurred-image OCR check; its first run downloads the English language model.
+
+## Default dates
+- Manual entries, receipt results, fridge-photo results, and previously undated pantry items share the same date rules. Explicit dates always win. Estimates are saved once and do not move forward on refresh; editing a food name recalculates its estimate from its original added date.
+- Examples: ripe refrigerated tomatoes use 2 days; raw eggs in shells use 21 days; raw chicken uses 2 days; cooked leftovers use 3 days. These are planning estimates from the added date, assuming recently purchased/prepared food and the stated storage conditions. Adjust for earlier purchases, opening, ripeness, and package instructions; an estimate cannot establish that food is safe.
+- Preparation matters: `dry rice` uses a pantry estimate, while `cooked rice` uses a short refrigerated estimate. Unknown names receive a next-day **Review by** reminder, not a claimed shelf life.
+- Defaults use conservative planning values informed by [FoodSafety.gov cold storage guidance](https://www.foodsafety.gov/food-safety-charts/cold-food-storage-charts) and [Nebraska Extension home food storage guidance](https://food.unl.edu/free-resource/food-storage/). The card displays the storage assumption and allows corrections.
+- Automatic email/push reminder delivery is not connected. Settings makes this explicit. Planner scores are estimates of pantry use, not measured waste avoided. Inventory syncs across accounts' devices; recipe and planner views are cached on the current device/session.

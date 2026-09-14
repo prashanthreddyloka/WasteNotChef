@@ -78,4 +78,10 @@ describe("analyzeFridgePhoto", () => {
     expect(normalizeCandidateDate("04/02/2026")?.toISOString()).toContain("2026-04-02");
     expect(normalizeCandidateDate("Apr 2 2026")?.toISOString()).toContain("2026-04-02");
   });
+  it("assigns default dates when a fridge image has no readable dates", async () => {
+    process.env.MOCK_OCR_TEXT = "tomato eggs";
+    const items = await analyzeFridgePhoto(fixturePath, [], new Date(2026, 8, 12, 12));
+    expect(items.find(item => item.name === "tomato")).toMatchObject({ detectedExpiry: null, inferredExpiry: "2026-09-14", expirySource: "rule" });
+    expect(items.find(item => item.name === "eggs")).toMatchObject({ inferredExpiry: "2026-10-03" });
+  });
 });

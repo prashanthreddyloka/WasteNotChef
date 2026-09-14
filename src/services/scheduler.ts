@@ -1,5 +1,6 @@
 import { addDays } from "date-fns";
 import { daysUntil, formatDate, toDate } from "../utils/dates";
+import { canonicalFoodName } from "../../client/src/lib/shelfLife";
 
 export type PlannerItem = {
   id: string;
@@ -47,13 +48,13 @@ function expiryOf(item: PlannerItem): Date | null {
   return toDate(item.detectedExpiry ?? item.inferredExpiry);
 }
 
-function recipeScore(recipe: PlannerRecipe, items: PlannerItem[], preferences: PlannerPreferences, dayOffset: number): number {
-  const available = new Set(items.map((item) => item.name.toLowerCase()));
-  const matched = recipe.ingredients.filter((ingredient) => available.has(ingredient.name.toLowerCase()));
+function recipeScore(recipe: PlannerRecipe, items: PlannerItem[], preferences: PlannerPreferences, dayOffset: number, referenceDate: Date): number {
+  const available = new Set(items.map((item) => canonicalFoodName(item.name)));
+  const matched = recipe.ingredients.filter((ingredient) => available.has(canonicalFoodName(ingredient.name)));
   const expiringSoonBonus = matched.reduce((sum, ingredient) => {
-    const item = items.find((entry) => entry.name.toLowerCase() === ingredient.name.toLowerCase());
+    const item = items.find((entry) => canonicalFoodName(entry.name) === canonicalFoodName(ingredient.name));
     const expiry = item ? expiryOf(item) : null;
-    return sum + (expiry ? Math.max(0, 8 - daysUntil(expiry)) : 0);
+    return sum + (expiry ? Math.max(0, 8 - daysUntil(expiry, referenceDate)) : 0);
   }, 0);
   const preferenceBonus = recipe.tags.some((tag) => preferences.preferCuisineTags.includes(tag)) ? 3 : 0;
   const leftoverPenalty = Math.max(0, matched.length - preferences.maxLeftovers);
@@ -61,10 +62,11 @@ function recipeScore(recipe: PlannerRecipe, items: PlannerItem[], preferences: P
 }
 
 export function calculateWasteScore(items: PlannerItem[], plannedItems: string[], referenceDate = new Date()): number {
+  const planned = new Set(plannedItems.map(canonicalFoodName));
   const penalty = items.reduce((sum, item) => {
     const expiry = expiryOf(item);
     const expired = expiry ? daysUntil(expiry, referenceDate) < 0 : false;
-    const unused = !plannedItems.includes(item.name);
+    const unused = !planned.has(canonicalFoodName(item.name));
     return sum + (expired || unused ? 12 * (item.importanceWeight ?? 1) : 0);
   }, 0);
 
@@ -92,12 +94,16 @@ export function planWeek(
     }
 
     const scheduledDate = addDays(startDate, dayOffset);
-    const rankedRecipes = recipes
-      .map((recipe) => ({ recipe, score: recipeScore(recipe, activeItems, preferences, dayOffset) }))
+    for (let meal = 0; meal < preferences.mealsPerDay; meal += 1) {
+    const remaining = activeItems.filter(item => !usedItemIds.has(item.id) && (!expiryOf(item) || daysUntil(expiryOf(item)!, scheduledDate) >= 0));
+    const earliest = remaining.find(item => recipes.some(recipe => recipe.ingredients.some(ingredient => canonicalFoodName(ingredient.name) === canonicalFoodName(item.name))));
+    if (!earliest) break;
+    const rankedRecipes = recipes.filter(recipe => recipe.ingredients.some(ingredient => canonicalFoodName(ingredient.name) === canonicalFoodName(earliest.name)))
+      .map((recipe) => ({ recipe, score: recipeScore(recipe, remaining, preferences, dayOffset, scheduledDate) }))
       .sort((a, b) => b.score - a.score);
     const chosen = rankedRecipes.find(({ recipe }) =>
       recipe.ingredients.some((ingredient) =>
-        activeItems.some((item) => item.name.toLowerCase() === ingredient.name.toLowerCase() && !usedItemIds.has(item.id))
+        remaining.some((item) => canonicalFoodName(item.name) === canonicalFoodName(ingredient.name))
       )
     ) ?? rankedRecipes[0];
 
@@ -106,22 +112,20 @@ export function planWeek(
     }
 
     const itemsConsumed = chosen.recipe.ingredients
-      .filter((ingredient) => activeItems.some((item) => item.name.toLowerCase() === ingredient.name.toLowerCase()))
+      .filter((ingredient) => remaining.some((item) => canonicalFoodName(item.name) === canonicalFoodName(ingredient.name)))
       .map((ingredient) => ingredient.name);
 
     itemsConsumed.forEach((name) => {
-      const match = activeItems.find((item) => item.name.toLowerCase() === name.toLowerCase() && !usedItemIds.has(item.id));
+      const match = remaining.find((item) => canonicalFoodName(item.name) === canonicalFoodName(name) && !usedItemIds.has(item.id));
       if (match) {
         usedItemIds.add(match.id);
       }
     });
 
-    const firstAtRisk = itemsConsumed
-      .map((name) => activeItems.find((item) => item.name.toLowerCase() === name.toLowerCase()))
-      .find(Boolean);
+    const firstAtRisk = earliest;
     const expiry = firstAtRisk ? expiryOf(firstAtRisk) : null;
     const days = expiry ? daysUntil(expiry, scheduledDate) : null;
-    const leftovers = chosen.recipe.ingredients
+    const missing = chosen.recipe.ingredients
       .filter((ingredient) => !itemsConsumed.includes(ingredient.name))
       .map((ingredient) => ingredient.name);
 
@@ -129,10 +133,10 @@ export function planWeek(
       scheduledDate: formatDate(scheduledDate) as string,
       recipe: chosen.recipe,
       itemsConsumed,
-      leftovers,
+      leftovers: [],
       priority: Number((chosen.score + (days !== null ? Math.max(0, 5 - days) : 0)).toFixed(2)),
       reasoning: expiry
-        ? `Uses ${firstAtRisk?.name} expiring in ${days} day(s); EDF prioritized with utilization tie-breakers.`
+        ? `Uses ${firstAtRisk?.name} due in ${days} day(s).${missing.length ? ` You may need: ${missing.join(", ")}.` : ""}`
         : "Best coverage match for current pantry and preferences.",
       wasteScore: calculateWasteScore(
         activeItems,
@@ -140,6 +144,7 @@ export function planWeek(
         scheduledDate
       )
     });
+    }
   }
 
   return {
@@ -147,7 +152,7 @@ export function planWeek(
     wasteProjection: {
       weeklyWasteScore: calculateWasteScore(
         activeItems,
-        Array.from(usedItemIds).map((id) => activeItems.find((item) => item.id === id)?.name ?? "")
+        Array.from(usedItemIds).map((id) => activeItems.find((item) => item.id === id)?.name ?? ""), startDate
       ),
       atRiskItems: activeItems
         .filter((item) => {
