@@ -92,22 +92,6 @@ export function Settings({
         </section>
       </div>
 
-      <section className="rounded-[1.75rem] border border-white/70 bg-white/85 p-6 shadow-float">
-        <p className="text-sm font-semibold uppercase tracking-[0.3em] text-coral">Suggested improvements</p>
-        <h2 className="mt-2 font-display text-3xl text-ink">What I would add next</h2>
-        <div className="mt-5 grid gap-4 md:grid-cols-3">
-          {[
-            ["Household mode", "Shared fridge edits, roles, and a common weekly plan for families or roommates."],
-            ["Smart substitutions", "Suggest nearby ingredient swaps and pantry-first replacements per recipe."],
-            ["Shopping bridge", "Turn missing ingredients into a quick grocery list after plan generation."]
-          ].map(([title, copy]) => (
-            <article key={title} className="rounded-2xl bg-oat p-4">
-              <div className="font-semibold text-ink">{title}</div>
-              <div className="mt-2 text-sm leading-6 text-slate-600">{copy}</div>
-            </article>
-          ))}
-        </div>
-      </section>
     </div>
   );
 }
