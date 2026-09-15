@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://waste-not-chef.vercel.app/sitemap.xml

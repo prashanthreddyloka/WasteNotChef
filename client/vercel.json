@@ -2,6 +2,14 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "framework": "vite",
+  "headers": [
+    { "source": "/login", "headers": [{ "key": "X-Robots-Tag", "value": "noindex" }] },
+    { "source": "/fridge", "headers": [{ "key": "X-Robots-Tag", "value": "noindex" }] },
+    { "source": "/recipes", "headers": [{ "key": "X-Robots-Tag", "value": "noindex" }] },
+    { "source": "/planner", "headers": [{ "key": "X-Robots-Tag", "value": "noindex" }] },
+    { "source": "/dashboard", "headers": [{ "key": "X-Robots-Tag", "value": "noindex" }] },
+    { "source": "/settings", "headers": [{ "key": "X-Robots-Tag", "value": "noindex" }] }
+  ],
   "rewrites": [
     {
       "source": "/(.*)",

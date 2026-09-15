@@ -8,6 +8,7 @@ import { Dashboard } from "./pages/Dashboard";
 import { Fridge } from "./pages/Fridge";
 import { Landing } from "./pages/Landing";
 import { Login } from "./pages/Login";
+import { PublicHome } from "./pages/PublicHome";
 import { Planner } from "./pages/Planner";
 import { Recipes } from "./pages/Recipes";
 import { Settings } from "./pages/Settings";
@@ -119,6 +120,7 @@ function App() {
     if (!("Notification" in window)) return;
     const permission = await Notification.requestPermission(); setNotificationPrefs(current => ({ ...current, browserPermission: permission, webPushEnabled: permission === "granted" }));
   }
+  if (!session && location.pathname === "/") return <PublicHome />;
   if (restoring) return <div className="app-shell min-h-screen p-10" role="status">Opening your kitchen…</div>;
   if (!session) return <div className="app-shell min-h-screen px-4 py-8 sm:px-6 lg:px-8">{appError && <p role="alert" className="mx-auto max-w-6xl text-red-700">{appError}</p>}<Login onGuestLogin={guestLogin} onAuthenticated={result => { setSessionToken(result.token); localStorage.removeItem("wastenotchef:session"); setSession(result.user); setRecoveryCode(result.recoveryCode ?? ""); setAppError(""); navigate("/fridge"); }} /></div>;
   const pending = pantry.busy || busy;
